@@ -1,0 +1,35 @@
+{
+  "name": "toss-invest-cli",
+  "version": "0.0.0",
+  "module": "src/main.ts",
+  "bin": {
+    "toss-invest-cli": "src/main.ts"
+  },
+  "type": "module",
+  "private": true,
+  "description": "Bun rewrite workspace for toss-invest-cli.",
+  "scripts": {
+    "dev": "bun --no-env-file src/main.ts",
+    "clean": "rm -rf dist",
+    "prebuild": "bun run clean",
+    "build": "mkdir -p dist && cd dist && bun build --no-env-file --no-compile-autoload-dotenv ../src/main.ts --compile --outfile ./toss-invest-cli",
+    "lint": "biome lint ./src ./__test__",
+    "format": "biome format --write ./src ./__test__",
+    "test": "jest --config jest.config.json",
+    "test:e2e": "jest --config __test__/jest.e2e-config.json",
+    "typecheck": "tsc --noEmit --project tsconfig.json"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.3",
+    "@types/bun": "latest",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.4.2",
+    "ts-jest": "^29.4.11",
+    "typescript": "^6"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "dotenv": "^17.4.2",
+    "zod": "^4.4.3"
+  }
+}
