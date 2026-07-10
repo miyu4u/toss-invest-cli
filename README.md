@@ -4,15 +4,42 @@ Toss Invest OpenAPI를 터미널에서 사용 할 수 있는 CLI입니다.
 
 ## 설치
 
-### 요구 사항
+### Homebrew 사용
 
-- [Bun](https://bun.sh/) 런타임
-- [Toss Invest OpenAPI](https://corp.tossinvest.com/ko/open-api) 자격 증명 또는 OAuth access token
+Homebrew와 Bun이 필요합니다.
+
+custom tap을 등록한 뒤 formula를 설치합니다.
 
 ```bash
-cd toss-invest-cli
-bun install
+brew tap miyu4u/tap https://github.com/miyu4u/homebrew-tap
+brew install miyu4u/tap/toss-invest-cli
 ```
+
+설치가 끝나면 다음 명령으로 CLI를 확인할 수 있습니다.
+
+```bash
+toss-invest-cli --help
+```
+
+formula는 설치 과정에서 `bun`으로 소스를 빌드하므로 별도로 바이너리를 내려받지 않습니다.
+
+### 직접 빌드
+
+Git과 Bun을 준비한 뒤 repository를 clone하고 의존성을 설치합니다.
+
+```bash
+git clone https://github.com/miyu4u/toss-invest-cli.git
+cd toss-invest-cli
+bun install --frozen-lockfile
+bun run build
+```
+
+빌드된 실행 파일은 `dist/toss-invest-cli`에 생성됩니다.
+
+```bash
+./dist/toss-invest-cli --help
+```
+
 
 ## 실행
 
