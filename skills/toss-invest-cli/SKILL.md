@@ -72,6 +72,8 @@ Classify the request as a read-only query, local watchlist change, order-informa
   | time in force | 시장가에는 `DAY` 또는 생략, `CLS`는 미국 주식 `LIMIT` 주문에만 사용 |
   | high-value confirmation | 명령이 요구하거나 금액이 큰 경우 `--confirm-high-value-order` |
 
+`--confirm-high-value-order`는 API request body의 optional acknowledgement입니다. 명시하면 regular/conditional create·modify의 live request와 dry-run `result.summary`에 `confirmHighValueOrder=true`가 함께 나타납니다. 생략 시 `false`를 자동으로 넣지 않으며, CLI는 API threshold를 추정하거나 cancel 명령에 이 옵션을 추가하지 않습니다.
+
 ## 주문 단계
 
 1. **입력 확인**: 사용자가 계좌, 종목, 매수·매도, 주문 유형, 수량, 가격 또는 금액을 명시했는지 확인하고, 빠진 옵션은 subcommand help로 확인한다.

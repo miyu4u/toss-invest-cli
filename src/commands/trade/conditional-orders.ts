@@ -92,7 +92,9 @@ export class ConditionalOrderTradeCommands {
 					);
 					const request = ConditionalOrderCreateRequestSchema.parse({
 						clientOrderId,
-						confirmHighValueOrder: params.confirmHighValueOrder,
+						...(params.confirmHighValueOrder === true
+							? { confirmHighValueOrder: true }
+							: {}),
 						expireDate: params.expireDate,
 						first: firstCondition(params),
 						orderType: params.orderType,
@@ -109,6 +111,7 @@ export class ConditionalOrderTradeCommands {
 							critical: {
 								account,
 								clientOrderId,
+								confirmHighValueOrder: params.confirmHighValueOrder,
 								expireDate: params.expireDate,
 								firstOrderSide: params.firstOrderSide,
 								firstTriggerPrice: params.firstTriggerPrice,
@@ -145,7 +148,9 @@ export class ConditionalOrderTradeCommands {
 						() => SERVICE.tossInvestAPIService.getAccounts(),
 					);
 					const request = ConditionalOrderModifyRequestSchema.parse({
-						confirmHighValueOrder: params.confirmHighValueOrder,
+						...(params.confirmHighValueOrder === true
+							? { confirmHighValueOrder: true }
+							: {}),
 						expireDate: params.expireDate,
 						first: firstCondition(params),
 						orderType: params.orderType,
@@ -165,6 +170,7 @@ export class ConditionalOrderTradeCommands {
 							critical: {
 								account,
 								conditionalOrderId: params.conditionalOrderId,
+								confirmHighValueOrder: params.confirmHighValueOrder,
 								expireDate: params.expireDate,
 								firstOrderSide: params.firstOrderSide,
 								firstTriggerPrice: params.firstTriggerPrice,

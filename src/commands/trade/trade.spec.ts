@@ -279,15 +279,18 @@ describe("거래 명령", () => {
 						...createOrderArgv,
 						"--client-order-id",
 						clientOrderId,
+						"--confirm-high-value-order",
 					],
 					{ output: dryRunOutput },
 				);
 				const dryRunBody = JSON.parse(dryRunOutput.stdout.toString());
 
 				expect(dryRunExitCode).toBe(0);
+				const dryRunSummary = parseConfirmationSummary(dryRunBody.result.summary);
 				expect(dryRunBody.result.summary).toContain(
 					`clientOrderId=${clientOrderId}`,
 				);
+				expect(dryRunSummary.confirmHighValueOrder).toBe("true");
 				expect(dryRunBody).toMatchObject({
 					mode: "dry-run",
 					result: {
@@ -309,6 +312,7 @@ describe("거래 명령", () => {
 						...createOrderArgv,
 						"--client-order-id",
 						clientOrderId,
+						"--confirm-high-value-order",
 						"--live",
 						"--confirm",
 						dryRunBody.result.summary,
@@ -328,6 +332,14 @@ describe("거래 명령", () => {
 					result: { orderId: "live-order-id" },
 				});
 				expect(createOrder).toHaveBeenCalledTimes(1);
+				const createOrderCall = createOrder.mock.calls[0];
+				if (!createOrderCall) {
+					throw new Error("Expected createOrder to be called");
+				}
+				const [, createOrderRequest] = createOrderCall;
+				expect(createOrderRequest).toMatchObject({
+					confirmHighValueOrder: true,
+				});
 			});
 
 			it("표시 계좌번호를 입력하면 accountSeq로 정규화한 뒤 API 주문을 호출한다", async () => {
@@ -408,6 +420,9 @@ describe("거래 명령", () => {
 					side: "BUY",
 					symbol: "005930",
 				});
+				expect(createOrderRequest).not.toHaveProperty(
+					"confirmHighValueOrder",
+				);
 				expect(prepareApi).toHaveBeenCalledTimes(3);
 				expect(getAccounts).toHaveBeenCalledTimes(2);
 			});
@@ -439,6 +454,7 @@ describe("거래 명령", () => {
 						symbol: "005930",
 					}),
 				);
+				expect(summary).not.toHaveProperty("confirmHighValueOrder");
 				expect(createOrder).not.toHaveBeenCalled();
 				expect(output.stderr.toString()).toBe("");
 			});
@@ -597,12 +613,16 @@ describe("거래 명령", () => {
 						...createConditionalOrderArgv,
 						"--client-order-id",
 						clientOrderId,
+						"--confirm-high-value-order",
 					],
 					{ output: dryRunOutput },
 				);
 				const dryRunBody = JSON.parse(dryRunOutput.stdout.toString());
 
 				expect(dryRunExitCode).toBe(0);
+				const dryRunSummary = parseConfirmationSummary(
+					dryRunBody.result.summary,
+				);
 				expect(dryRunOutput.stderr.toString()).toBe("");
 				expect(dryRunBody).toMatchObject({
 					mode: "dry-run",
@@ -611,6 +631,7 @@ describe("거래 명령", () => {
 						summary: expect.any(String),
 					},
 				});
+				expect(dryRunSummary.confirmHighValueOrder).toBe("true");
 				expect(dryRunBody.result.summary).toContain(
 					`clientOrderId=${clientOrderId}`,
 				);
@@ -628,6 +649,7 @@ describe("거래 명령", () => {
 						...createConditionalOrderArgv,
 						"--client-order-id",
 						clientOrderId,
+						"--confirm-high-value-order",
 						"--live",
 						"--confirm",
 						dryRunBody.result.summary,
@@ -649,6 +671,14 @@ describe("거래 명령", () => {
 					},
 				});
 				expect(createConditionalOrder).toHaveBeenCalledTimes(1);
+				const createConditionalOrderCall = createConditionalOrder.mock.calls[0];
+				if (!createConditionalOrderCall) {
+					throw new Error("Expected createConditionalOrder to be called");
+				}
+				const [, createConditionalOrderRequest] = createConditionalOrderCall;
+				expect(createConditionalOrderRequest).toMatchObject({
+					confirmHighValueOrder: true,
+				});
 			});
 
 			it("기본 dry-run에서 요약만 반환하고 API 호출 없이 종료한다", async () => {
@@ -677,6 +707,7 @@ describe("거래 명령", () => {
 						symbol: "005930",
 					}),
 				);
+				expect(summary).not.toHaveProperty("confirmHighValueOrder");
 				expect(createConditionalOrder).not.toHaveBeenCalled();
 				expect(output.stderr.toString()).toBe("");
 			});
@@ -822,18 +853,23 @@ describe("거래 명령", () => {
 						quantity: "2",
 					}),
 				);
+				expect(summary).not.toHaveProperty("confirmHighValueOrder");
 				expect(modifyOrder).not.toHaveBeenCalled();
 				expect(output.stderr.toString()).toBe("");
 			});
 
 			it("안전 변수 승인 + 정확한 confirm으로 live 실행이 정확히 1회 수행된다", async () => {
 				const dryRunOutput = createOutput();
-				const dryRunExitCode = await runCLI(modifyOrderArgv, {
+				const dryRunExitCode = await runCLI(
+					[...modifyOrderArgv, "--confirm-high-value-order"],
+					{
 					output: dryRunOutput,
-				});
+					},
+				);
 				const dryRunBody = JSON.parse(dryRunOutput.stdout.toString());
 
 				expect(dryRunExitCode).toBe(0);
+				const dryRunSummary = parseConfirmationSummary(dryRunBody.result.summary);
 				expect(dryRunOutput.stderr.toString()).toBe("");
 				expect(dryRunBody).toMatchObject({
 					mode: "dry-run",
@@ -842,6 +878,7 @@ describe("거래 명령", () => {
 					},
 				});
 				expect(modifyOrder).not.toHaveBeenCalled();
+				expect(dryRunSummary.confirmHighValueOrder).toBe("true");
 
 				modifyOrder.mockResolvedValue({
 					result: { orderId: OrderIDSchema.parse("mod-live-order-id") },
@@ -852,6 +889,7 @@ describe("거래 명령", () => {
 						runCLI(
 							[
 								...modifyOrderArgv,
+								"--confirm-high-value-order",
 								"--live",
 								"--confirm",
 								dryRunBody.result.summary,
@@ -871,6 +909,14 @@ describe("거래 명령", () => {
 					result: { orderId: "mod-live-order-id" },
 				});
 				expect(modifyOrder).toHaveBeenCalledTimes(1);
+				const modifyOrderCall = modifyOrder.mock.calls[0];
+				if (!modifyOrderCall) {
+					throw new Error("Expected modifyOrder to be called");
+				}
+				const [, modifyOrderRequest] = modifyOrderCall;
+				expect(modifyOrderRequest).toMatchObject({
+					confirmHighValueOrder: true,
+				});
 			});
 
 			it("scoped config-home dotenv로 안전 변수 적용 후 dry-run 요약으로 live 주문이 정확히 1회 수행된다", async () => {
@@ -958,6 +1004,9 @@ describe("거래 명령", () => {
 						orderType: "LIMIT",
 						quantity: "2",
 					});
+					expect(modifyOrderRequest).not.toHaveProperty(
+						"confirmHighValueOrder",
+					);
 				} finally {
 					process.chdir(previousCwd);
 					await rm(configHome, { recursive: true, force: true });
@@ -1017,6 +1066,7 @@ describe("거래 명령", () => {
 						orderId: "ord-cancel-123",
 					}),
 				);
+				expect(summary).not.toHaveProperty("confirmHighValueOrder");
 				expect(cancelOrder).not.toHaveBeenCalled();
 				expect(output.stderr.toString()).toBe("");
 			});
@@ -1126,16 +1176,21 @@ describe("거래 명령", () => {
 						firstTriggerPrice: "70000",
 					}),
 				);
+				expect(summary).not.toHaveProperty("confirmHighValueOrder");
 				expect(modifyConditionalOrder).not.toHaveBeenCalled();
 				expect(output.stderr.toString()).toBe("");
 			});
 
 			it("dry-run 요약 재생성으로 승인 시 조건부 주문이 정확히 1회 수정된다", async () => {
 				const dryRunOutput = createOutput();
-				const dryRunExitCode = await runCLI(modifyConditionalOrderArgv, {
+				const dryRunExitCode = await runCLI(
+					[...modifyConditionalOrderArgv, "--confirm-high-value-order"],
+					{
 					output: dryRunOutput,
-				});
+					},
+				);
 				const dryRunBody = JSON.parse(dryRunOutput.stdout.toString());
+				const dryRunSummary = parseConfirmationSummary(dryRunBody.result.summary);
 
 				expect(dryRunExitCode).toBe(0);
 				expect(dryRunOutput.stderr.toString()).toBe("");
@@ -1145,6 +1200,7 @@ describe("거래 명령", () => {
 						summary: expect.any(String),
 					},
 				});
+				expect(dryRunSummary.confirmHighValueOrder).toBe("true");
 				expect(modifyConditionalOrder).not.toHaveBeenCalled();
 
 				modifyConditionalOrder.mockResolvedValue({
@@ -1155,6 +1211,7 @@ describe("거래 명령", () => {
 				const exitCode = await runCLI(
 					[
 						...modifyConditionalOrderArgv,
+						"--confirm-high-value-order",
 						"--live",
 						"--confirm",
 						dryRunBody.result.summary,
@@ -1175,6 +1232,14 @@ describe("거래 명령", () => {
 					},
 				});
 				expect(modifyConditionalOrder).toHaveBeenCalledTimes(1);
+				const modifyConditionalOrderCall = modifyConditionalOrder.mock.calls[0];
+				if (!modifyConditionalOrderCall) {
+					throw new Error("Expected modifyConditionalOrder to be called");
+				}
+				const [, modifyConditionalOrderRequest] = modifyConditionalOrderCall;
+				expect(modifyConditionalOrderRequest).toMatchObject({
+					confirmHighValueOrder: true,
+				});
 			});
 		});
 
@@ -1231,6 +1296,7 @@ describe("거래 명령", () => {
 						conditionalOrderId: "coid-cancel-123",
 					}),
 				);
+				expect(summary).not.toHaveProperty("confirmHighValueOrder");
 				expect(cancelConditionalOrder).not.toHaveBeenCalled();
 				expect(output.stderr.toString()).toBe("");
 			});

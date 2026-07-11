@@ -108,7 +108,9 @@ export class OrderTradeCommands {
 					);
 					const request = OrderCreateRequestSchema.parse({
 						clientOrderId,
-						confirmHighValueOrder: params.confirmHighValueOrder,
+						...(params.confirmHighValueOrder === true
+							? { confirmHighValueOrder: true }
+							: {}),
 						orderAmount: params.orderAmount,
 						orderType: params.orderType,
 						price: params.price,
@@ -125,6 +127,7 @@ export class OrderTradeCommands {
 							critical: {
 								account,
 								clientOrderId,
+								confirmHighValueOrder: params.confirmHighValueOrder,
 								orderAmount: params.orderAmount,
 								orderType: params.orderType,
 								price: params.price,
@@ -169,7 +172,9 @@ export class OrderTradeCommands {
 						() => SERVICE.tossInvestAPIService.getAccounts(),
 					);
 					const request = OrderModifyRequestSchema.parse({
-						confirmHighValueOrder: params.confirmHighValueOrder,
+						...(params.confirmHighValueOrder === true
+							? { confirmHighValueOrder: true }
+							: {}),
 						orderType: params.orderType,
 						price: params.price,
 						quantity: params.quantity,
@@ -186,6 +191,7 @@ export class OrderTradeCommands {
 							critical: {
 								account,
 								orderId: params.orderId,
+								confirmHighValueOrder: params.confirmHighValueOrder,
 								orderType: params.orderType,
 								price: params.price,
 								quantity: params.quantity,

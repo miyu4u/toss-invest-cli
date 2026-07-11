@@ -245,6 +245,15 @@ toss-invest-cli orders create \
 }
 ```
 
+
+> `--confirm-high-value-order`는 API 요청에 선택적으로 전달하는 고액 주문 동의입니다.
+>
+> 이 flag를 명시하면 regular/conditional 주문의 create·modify request body에 `confirmHighValueOrder=true`가 포함되고, 같은 `confirmHighValueOrder=true`가 dry-run `result.summary`에도 포함됩니다.
+>
+> flag를 생략하면 request와 summary 모두에 `false`를 자동으로 추가하지 않습니다. cancel 명령에는 이 옵션을 사용하지 않습니다.
+
+> [주의] 고액 주문은 실제 환경에서 테스트 되지 않았습니다. 주의가 필요합니다.
+
 1. **실주문 환경 게이트를 설정합니다.** 유효한 인증 정보와 함께 대상 계좌를 allowlist에 등록하고, 다음 환경 값을 설정해야 합니다.
 
 ```dotenv
@@ -322,10 +331,27 @@ error_kind=HttpException {"error":{"code":"HttpException","details":{"name":"Htt
 
 ## 고액 주문의 경우
 
-고액 주문은 고액 주문 사항에 대한 명시적 동의를 파라미터로 전달해야하는 의무가 있습니다. 이는 토스 증권쪽에서 서술하는 의무사항이며, 기준 가격은 공개되어 있지 않습니다.
+고액 주문 여부와 기준 금액은 서버가 주문 조건과 계좌·시장 상황을 기준으로 판정합니다. 해당 조건에 해당되는 경우, 고액 주문 사항에 대한 동의 플래그가 없다면 토스 증권쪽에서 해당 주문 요청을 거부합니다.
 
-해당 조건에 해당되는 경우, 고액 주문 사항에 대한 동의 플래그가 없다면 토스 증권쪽에서 해당 주문 요청을 거부합니다. API내에 기능은 구현되어있으나, 현재 주문 안전 게이트에서 이를 지원하지 않고 있습니다. (구현 예정)
+이 기준과 기본값은 클라이언트에 공개되지 않으므로 CLI가 통화별 threshold를 설정하거나 `quantity × price`, `orderAmount`, 조건부 주문의 가격으로 고액 여부를 미리 산정하지 않습니다.
 
+따라서 dry-run만으로는 고액 주문 여부를 확정할 수 없습니다. dry-run에서는 실제 주문을 발행하지 않고 다음 항목만 확인합니다.
+
+- symbol, side, order type, quantity 또는 order amount, price 등 주문 조건
+- live 승인에 사용할 `result.clientOrderId`
+- 변경하지 않고 다시 전달할 `result.summary`
+- `--confirm-high-value-order`를 지정했는지 여부
+
+실주문을 진행할 때에는 일반적인 `--live`, 환경 안전 변수, 계좌 allowlist, dry-run summary 확인 절차를 지키고, 고액 주문 동의가 필요한 경우 `--confirm-high-value-order`를 명시합니다. 이 flag는 클라이언트가 고액 여부를 판정하는 기능이 아니라 서버 요청에 명시적 동의를 전달하는 기능입니다.
+
+서버가 해당 주문을 고액 주문 동의 부족 또는 주문 조건 문제로 거부하면 CLI는 성공으로 처리하지 않고 exception을 stderr로 전달합니다. 오류가 발생한 뒤에는 자동으로 재시도하지 말고 다음 순서로 다시 확인해야합니다.
+
+1. stderr의 HTTP 오류와 주문 조건을 확인합니다.
+2. 최근 주문 내역을 조회해 주문이 이미 생성되지 않았는지 확인합니다.
+3. 시장, 주문 유형, 수량·금액, 가격 조건과 고액 주문 동의 flag를 다시 검토합니다.
+4. 조건을 변경했으면 새 dry-run을 실행하고, 새 `clientOrderId`와 `summary`로 live 승인 절차를 다시 진행합니다.
+
+서버의 고액 주문 판정은 실제 live 요청의 성공 또는 exception으로만 확인할 수 있습니다.
 
 ## 기능
 

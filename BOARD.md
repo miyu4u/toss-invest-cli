@@ -9,6 +9,7 @@
   - [x] `CLI.QUERY_TRADE.QUERY` `market`, `stock`, `market-info`, `account`, `order-info`, `orders`, `portfolio`, `watchlist` 조회 명령을 런타임·서비스에 연결
   - [x] `CLI.QUERY_TRADE.TRADE` 일반·조건부 주문 생성·수정·취소를 기본 dry-run 및 fail-closed live 안전 정책으로 구현
     - [x] `CLI.QUERY_TRADE.TRADE.MARKET_TIF_GUARD` `src/schema/api/requests.ts`에서 시장가 `MARKET` 주문의 `CLS` 유효기간을 로컬 거부하고, `src/commands/trade/orders.ts`의 dry-run 승인 요약에 `timeInForce`를 포함해 확인 조건을 고정; `src/schema/schema.spec.ts`, `src/commands/trade/trade.spec.ts`로 검증
+    - [x] `CLI.QUERY_TRADE.TRADE.HIGH_VALUE_CONFIRMATION` optional `confirmHighValueOrder` API payload를 regular/conditional create·modify의 dry-run summary와 live request에 정합화; threshold 자동 추정과 cancel 옵션은 제외; `src/commands/trade/trade.spec.ts`와 project-local test/lint/typecheck로 검증
   - [x] `CLI.QUERY_TRADE.TRADE_EXECUTOR` dry-run 결과와 승인된 live 콜백을 런타임 안전 정책에서 분리하는 공통 거래 실행 경계를 유지
   - [x] `CLI.QUERY_TRADE.TRADE_OUTPUT_CONTRACT` dry-run·live 주문 결과를 `mode`와 `result` 공통 envelope로 정규화해 자동화 소비자가 단일 JSON 경로를 사용하도록 유지
   - [x] `CLI.QUERY_TRADE.TRADE_GATE_CUTOVER` live 주문에서 `--live`·확인 요약·환경 승인·kill switch·계좌 allowlist·생성 주문 ID 안전 게이트를 유지
