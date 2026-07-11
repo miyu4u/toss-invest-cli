@@ -12,6 +12,7 @@
   - [x] `CLI.QUERY_TRADE.TRADE_EXECUTOR` dry-run 결과와 승인된 live 콜백을 런타임 안전 정책에서 분리하는 공통 거래 실행 경계를 유지
   - [x] `CLI.QUERY_TRADE.TRADE_OUTPUT_CONTRACT` dry-run·live 주문 결과를 `mode`와 `result` 공통 envelope로 정규화해 자동화 소비자가 단일 JSON 경로를 사용하도록 유지
   - [x] `CLI.QUERY_TRADE.TRADE_GATE_CUTOVER` live 주문에서 `--live`·확인 요약·환경 승인·kill switch·계좌 allowlist·생성 주문 ID 안전 게이트를 유지
+  - [x] `CLI.QUERY_TRADE.ENV_CANONICAL` 계좌와 live safety 환경 변수를 canonical `TOSS_INVEST_*` 이름으로 통일하고 scoped dotenv precedence 및 live gate 적용을 검증
   - [x] `CLI.QUERY_TRADE.TEST` CLI 도움말·parse-clean JSON·거래 거부와 결정적 HTTP echo 계약을 검증
     - [x] `CLI.QUERY_TRADE.TEST.CONTRACT` 필수 옵션 오류와 JSON stdout 분리 계약을 검증
   - [x] `CLI.QUERY_TRADE.CLASS_SWEEP` 런타임과 명령 등록자를 클래스 기반 표면으로 정리하면서 얇은 라우팅과 서비스 레지스트리 동작을 유지

@@ -29,14 +29,17 @@ export class CliConfigRuntime {
 		const clientSecret = scopedDotenv.resolve(["TOSS_INVEST_SECRET_KEY"]);
 		const credentials = this.resolveClientCredentialsSource(clientId, clientSecret);
 		const keyringPassword = scopedDotenv.resolve(["TOSS_INVEST_CLI_KEYRING_PASSWORD"]);
-		const accountAllowlist = scopedDotenv.resolve(["TOSSINVEST_ACCOUNT_ALLOWLIST"]);
-		const orderKillSwitch = scopedDotenv.resolve(["TOSSINVEST_ORDER_KILL_SWITCH"]);
-		const orderLiveApproved = scopedDotenv.resolve(["TOSSINVEST_ORDER_LIVE_APPROVED"]);
-		const accessToken = scopedDotenv.resolve(["TOSS_INVEST_ACCESS_TOKEN"]);
-		const account = scopedDotenv.resolve([
-			"TOSSINVEST_ACCOUNT",
-			"TOSS_INVEST_ACCOUNT",
+		const accountAllowlist = scopedDotenv.resolve([
+			"TOSS_INVEST_ACCOUNT_ALLOWLIST",
 		]);
+		const orderKillSwitch = scopedDotenv.resolve([
+			"TOSS_INVEST_ORDER_KILL_SWITCH",
+		]);
+		const orderLiveApproved = scopedDotenv.resolve([
+			"TOSS_INVEST_ORDER_LIVE_APPROVED",
+		]);
+		const accessToken = scopedDotenv.resolve(["TOSS_INVEST_ACCESS_TOKEN"]);
+		const account = scopedDotenv.resolve(["TOSS_INVEST_ACCOUNT"]);
 
 		const payload: {
 			accessToken?: string;

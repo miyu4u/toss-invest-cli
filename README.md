@@ -183,7 +183,7 @@ toss-invest-cli [--access-token <token>] [--account <accountNo-or-accountSeq>] [
 ```
 
 - `--access-token <token>`: 이번 호출에만 사용할 OAuth access token입니다. `TOSS_INVEST_ACCESS_TOKEN` 환경 변수도 사용할 수 있습니다.
-- `--account <accountNo-or-accountSeq>`: `account list`가 반환한 `accountNo` 또는 `accountSeq`를 지정합니다. CLI는 둘 중 어느 값을 받아도 OpenAPI header에 필요한 `accountSeq`로 변환합니다. 하나의 입력이 서로 다른 계좌와 충돌하면 `ACCOUNT_AMBIGUOUS`로 중단하므로 임의의 계좌를 선택하지 않습니다. `TOSS_INVEST_ACCOUNT`를 사용합니다.
+- `--account <accountNo-or-accountSeq>`: `account list`가 반환한 `accountNo` 또는 `accountSeq`를 지정합니다. CLI는 둘 중 어느 값을 받아도 OpenAPI header에 필요한 `accountSeq`로 변환합니다. 하나의 입력이 서로 다른 계좌와 충돌하면 `ACCOUNT_AMBIGUOUS`로 중단하므로 임의의 계좌를 선택하지 않습니다. 기본 계좌값은 `TOSS_INVEST_ACCOUNT`를 사용합니다.
 - `--json`: 결과 데이터만 parse-clean JSON으로 stdout에 출력합니다. 오류와 진단 메시지는 stderr로 분리됩니다.
 - `--help`: 루트 또는 하위 명령의 도움말을 표시합니다. 예: `toss-invest orders --help`
 

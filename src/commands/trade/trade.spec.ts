@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
-
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { OrderIDSchema } from "../../schema/api/identifier";
 import { AccountSchema } from "../../schema/api/responses";
 import { SERVICE } from "../../service-registry";
 import { runCLI } from "../../cli/bootstrap";
 import { TossInvestApiResponseSchema } from "../../schema/helper-schema";
 import { TOSS_INVEST_AUTH_RUNTIME } from "../../runtime/auth";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 class BufferStream {
 	readonly chunks: string[] = [];
@@ -101,6 +103,13 @@ const UUID_PATTERN =
 const CANONICAL_ACCOUNT_SEQ = "42";
 const DISPLAY_ACCOUNT_NO = "010123456789";
 const DISPLAY_ACCOUNT_SEQ = 2001;
+const createCanonicalTradeSafetyEnv = (
+	account: string = CANONICAL_ACCOUNT_SEQ,
+): Record<string, string> => ({
+	TOSS_INVEST_ACCOUNT_ALLOWLIST: String(account),
+	TOSS_INVEST_ORDER_KILL_SWITCH: "open",
+	TOSS_INVEST_ORDER_LIVE_APPROVED: "yes",
+});
 
 const getAccountsResponse = TossInvestApiResponseSchema(
 	AccountSchema.array(),
@@ -132,6 +141,98 @@ const getAccountsResponse = TossInvestApiResponseSchema(
 function withAccount(argv: string[], account: string): string[] {
 	return [...argv.slice(0, 4), account, ...argv.slice(5)];
 }
+
+async function withScopedTradeSafetyEnv<T>(
+	account: string,
+	run: (env: Record<string, string>) => Promise<T>,
+): Promise<T> {
+	const cliHome = await mkdtemp(
+		join(tmpdir(), "toss-invest-cli-trade-safety-"),
+	);
+	const envPath = join(cliHome, ".env");
+	await writeFile(
+		envPath,
+		[
+			`TOSS_INVEST_ACCOUNT_ALLOWLIST=${account}`,
+			"TOSS_INVEST_ORDER_KILL_SWITCH=open",
+			"TOSS_INVEST_ORDER_LIVE_APPROVED=yes",
+		].join("\n"),
+	);
+
+	try {
+		return await run({
+			TOSS_INVEST_CLI_HOME: cliHome,
+		});
+	} finally {
+		await rm(cliHome, { recursive: true, force: true });
+	}
+}
+
+const modifyOrderArgv = [
+	"node",
+	"toss-invest-cli",
+	"--json",
+	"--account",
+	"42",
+	"orders",
+	"modify",
+	"--order-id",
+	"ord-live-123",
+	"--order-type",
+	"LIMIT",
+	"--quantity",
+	"2",
+];
+
+const cancelOrderArgv = [
+	"node",
+	"toss-invest-cli",
+	"--json",
+	"--account",
+	"42",
+	"orders",
+	"cancel",
+	"--order-id",
+	"ord-cancel-123",
+];
+
+const modifyConditionalOrderArgv = [
+	"node",
+	"toss-invest-cli",
+	"--json",
+	"--account",
+	"42",
+	"orders",
+	"conditional",
+	"modify",
+	"--conditional-order-id",
+	"coid-live-123",
+	"--type",
+	"SINGLE",
+	"--quantity",
+	"1",
+	"--order-type",
+	"LIMIT",
+	"--expire-date",
+	"20280101",
+	"--first-order-side",
+	"BUY",
+	"--first-trigger-price",
+	"70000",
+];
+
+const cancelConditionalOrderArgv = [
+	"node",
+	"toss-invest-cli",
+	"--json",
+	"--account",
+	"42",
+	"orders",
+	"conditional",
+	"cancel",
+	"--conditional-order-id",
+	"coid-cancel-123",
+];
 
 describe("거래 명령", () => {
 	let prepareApi: jest.SpiedFunction<
@@ -215,9 +316,7 @@ describe("거래 명령", () => {
 					{
 						output,
 						env: {
-							TOSSINVEST_ACCOUNT_ALLOWLIST: CANONICAL_ACCOUNT_SEQ,
-							TOSSINVEST_ORDER_KILL_SWITCH: "open",
-							TOSSINVEST_ORDER_LIVE_APPROVED: "yes",
+							...createCanonicalTradeSafetyEnv(),
 						},
 					},
 				);
@@ -280,11 +379,7 @@ describe("거래 명령", () => {
 					{
 						output,
 						env: {
-							TOSSINVEST_ACCOUNT_ALLOWLIST: String(
-								DISPLAY_ACCOUNT_SEQ,
-							),
-							TOSSINVEST_ORDER_KILL_SWITCH: "open",
-							TOSSINVEST_ORDER_LIVE_APPROVED: "yes",
+							...createCanonicalTradeSafetyEnv(String(DISPLAY_ACCOUNT_SEQ)),
 						},
 					},
 				);
@@ -540,9 +635,7 @@ describe("거래 명령", () => {
 					{
 						output,
 						env: {
-							TOSSINVEST_ACCOUNT_ALLOWLIST: CANONICAL_ACCOUNT_SEQ,
-							TOSSINVEST_ORDER_KILL_SWITCH: "open",
-							TOSSINVEST_ORDER_LIVE_APPROVED: "yes",
+							...createCanonicalTradeSafetyEnv(),
 						},
 					},
 				);
@@ -690,6 +783,519 @@ describe("거래 명령", () => {
 					"client_order_id_required",
 				);
 				expect(createConditionalOrder).not.toHaveBeenCalled();
+			});
+		});
+	});
+
+	describe("orders modify", () => {
+		let output: ReturnType<typeof createOutput>;
+		let modifyOrder: jest.SpiedFunction<
+			typeof SERVICE.tradeCommandService.modifyOrder
+		>;
+
+		beforeEach(() => {
+			output = createOutput();
+			modifyOrder = jest.spyOn(SERVICE.tradeCommandService, "modifyOrder");
+		});
+
+		describe("성공 케이스", () => {
+			it("기본 dry-run에서 요약만 반환하고 API 호출 없이 종료한다", async () => {
+				const exitCode = await runCLI(modifyOrderArgv, { output });
+				const body = JSON.parse(output.stdout.toString());
+				const summary = parseConfirmationSummary(body.result.summary);
+
+				expect(exitCode).toBe(0);
+				expect(body).toMatchObject({
+					mode: "dry-run",
+					result: {
+						summary: expect.any(String),
+					},
+				});
+				expect(body).not.toHaveProperty("clientOrderId");
+				expect(body).not.toHaveProperty("summary");
+				expect(summary).toEqual(
+					expect.objectContaining({
+						action: "orders.modify",
+						account: "42",
+						orderId: "ord-live-123",
+						orderType: "LIMIT",
+						quantity: "2",
+					}),
+				);
+				expect(modifyOrder).not.toHaveBeenCalled();
+				expect(output.stderr.toString()).toBe("");
+			});
+
+			it("안전 변수 승인 + 정확한 confirm으로 live 실행이 정확히 1회 수행된다", async () => {
+				const dryRunOutput = createOutput();
+				const dryRunExitCode = await runCLI(modifyOrderArgv, {
+					output: dryRunOutput,
+				});
+				const dryRunBody = JSON.parse(dryRunOutput.stdout.toString());
+
+				expect(dryRunExitCode).toBe(0);
+				expect(dryRunOutput.stderr.toString()).toBe("");
+				expect(dryRunBody).toMatchObject({
+					mode: "dry-run",
+					result: {
+						summary: expect.any(String),
+					},
+				});
+				expect(modifyOrder).not.toHaveBeenCalled();
+
+				modifyOrder.mockResolvedValue({
+					result: { orderId: OrderIDSchema.parse("mod-live-order-id") },
+				});
+				const exitCode = await withScopedTradeSafetyEnv(
+					CANONICAL_ACCOUNT_SEQ,
+					(safeEnv) =>
+						runCLI(
+							[
+								...modifyOrderArgv,
+								"--live",
+								"--confirm",
+								dryRunBody.result.summary,
+							],
+							{
+								output,
+								env: safeEnv,
+							},
+						),
+				);
+				const body = JSON.parse(output.stdout.toString());
+
+				expect(exitCode).toBe(0);
+				expect(output.stderr.toString()).toBe("");
+				expect(body).toMatchObject({
+					mode: "live",
+					result: { orderId: "mod-live-order-id" },
+				});
+				expect(modifyOrder).toHaveBeenCalledTimes(1);
+			});
+
+			it("scoped config-home dotenv로 안전 변수 적용 후 dry-run 요약으로 live 주문이 정확히 1회 수행된다", async () => {
+				const outputForDryRun = createOutput();
+				const outputForLive = createOutput();
+				const commandSafetyEnv = createCanonicalTradeSafetyEnv();
+				const configHome = await mkdtemp(
+					join(tmpdir(), "toss-invest-cli-trade-scoped-config-home-"),
+				);
+				const home = await mkdtemp(
+					join(tmpdir(), "toss-invest-cli-trade-scoped-home-"),
+				);
+				const cwd = await mkdtemp(
+					join(tmpdir(), "toss-invest-cli-trade-scoped-cwd-"),
+				);
+				const previousCwd = process.cwd();
+				const commandEnv = {
+					HOME: home,
+					TOSS_INVEST_CLI_HOME: configHome,
+				};
+				try {
+					await writeFile(
+						join(configHome, ".env"),
+						Object.entries(commandSafetyEnv)
+							.map(([key, value]) => `${key}=${value}`)
+							.join("\n"),
+					);
+
+					process.chdir(cwd);
+					const dryRunExitCode = await runCLI(modifyOrderArgv, {
+						output: outputForDryRun,
+						env: commandEnv,
+					});
+					const dryRunBody = JSON.parse(outputForDryRun.stdout.toString());
+
+					expect(dryRunExitCode).toBe(0);
+					expect(outputForDryRun.stderr.toString()).toBe("");
+					expect(dryRunBody).toMatchObject({
+						mode: "dry-run",
+						result: {
+							summary: expect.any(String),
+						},
+					});
+					expect(modifyOrder).not.toHaveBeenCalled();
+
+					modifyOrder.mockResolvedValue({
+						result: {
+							orderId: OrderIDSchema.parse("scoped-mod-live-order-id"),
+						},
+					});
+
+					const exitCode = await runCLI(
+						[
+							...modifyOrderArgv,
+							"--live",
+							"--confirm",
+							dryRunBody.result.summary,
+						],
+						{
+							output: outputForLive,
+							env: commandEnv,
+						},
+					);
+					const body = JSON.parse(outputForLive.stdout.toString());
+
+					expect(exitCode).toBe(0);
+					expect(outputForLive.stderr.toString()).toBe("");
+					expect(body).toEqual({
+						mode: "live",
+						result: {
+							orderId: "scoped-mod-live-order-id",
+						},
+					});
+					expect(modifyOrder).toHaveBeenCalledTimes(1);
+					const modifyOrderCall = modifyOrder.mock.calls[0];
+					if (!modifyOrderCall) {
+						throw new Error("Expected modifyOrder to be called once");
+					}
+					const [modifyOrderParams, modifyOrderRequest] = modifyOrderCall;
+					expect(modifyOrderParams).toMatchObject({
+						account: Number(CANONICAL_ACCOUNT_SEQ),
+						orderId: "ord-live-123",
+					});
+					expect(modifyOrderRequest).toMatchObject({
+						orderType: "LIMIT",
+						quantity: "2",
+					});
+				} finally {
+					process.chdir(previousCwd);
+					await rm(configHome, { recursive: true, force: true });
+					await rm(home, { recursive: true, force: true });
+					await rm(cwd, { recursive: true, force: true });
+				}
+			});
+		});
+
+		describe("실패 케이스", () => {
+			it("live 모드에서 승인 요약 없이 동작을 중단하고 API 호출을 하지 않는다", async () => {
+				const exitCode = await runCLI(
+					[...modifyOrderArgv, "--live"],
+					{ output, env: createCanonicalTradeSafetyEnv() },
+				);
+
+				expect(exitCode).toBe(2);
+				expect(output.stdout.toString()).toBe("");
+				expect(output.stderr.toString()).toContain(
+					"live_confirmation_required",
+				);
+				expect(modifyOrder).not.toHaveBeenCalled();
+			});
+		});
+	});
+
+	describe("orders cancel", () => {
+		let output: ReturnType<typeof createOutput>;
+		let cancelOrder: jest.SpiedFunction<
+			typeof SERVICE.tradeCommandService.cancelOrder
+		>;
+
+		beforeEach(() => {
+			output = createOutput();
+			cancelOrder = jest.spyOn(SERVICE.tradeCommandService, "cancelOrder");
+		});
+
+		describe("성공 케이스", () => {
+			it("기본 dry-run에서 요약만 반환하고 API 호출 없이 종료한다", async () => {
+				const exitCode = await runCLI(cancelOrderArgv, { output });
+				const body = JSON.parse(output.stdout.toString());
+				const summary = parseConfirmationSummary(body.result.summary);
+
+				expect(exitCode).toBe(0);
+				expect(body).toMatchObject({
+					mode: "dry-run",
+					result: {
+						summary: expect.any(String),
+					},
+				});
+				expect(body).not.toHaveProperty("clientOrderId");
+				expect(body).not.toHaveProperty("summary");
+				expect(summary).toEqual(
+					expect.objectContaining({
+						action: "orders.cancel",
+						account: "42",
+						orderId: "ord-cancel-123",
+					}),
+				);
+				expect(cancelOrder).not.toHaveBeenCalled();
+				expect(output.stderr.toString()).toBe("");
+			});
+
+			it("dry-run 요약 재생성으로 승인 시 주문 취소가 정확히 1회 수행된다", async () => {
+				const dryRunOutput = createOutput();
+				const dryRunExitCode = await runCLI(cancelOrderArgv, {
+					output: dryRunOutput,
+				});
+				const dryRunBody = JSON.parse(dryRunOutput.stdout.toString());
+
+				expect(dryRunExitCode).toBe(0);
+				expect(dryRunOutput.stderr.toString()).toBe("");
+				expect(dryRunBody).toMatchObject({
+					mode: "dry-run",
+					result: {
+						summary: expect.any(String),
+					},
+				});
+				expect(cancelOrder).not.toHaveBeenCalled();
+
+				cancelOrder.mockResolvedValue({
+					result: { orderId: OrderIDSchema.parse("ord-live-cancel-id") },
+				});
+				const exitCode = await runCLI(
+					[
+						...cancelOrderArgv,
+						"--live",
+						"--confirm",
+						dryRunBody.result.summary,
+					],
+					{
+						output,
+						env: createCanonicalTradeSafetyEnv(),
+					},
+				);
+				const body = JSON.parse(output.stdout.toString());
+
+				expect(exitCode).toBe(0);
+				expect(output.stderr.toString()).toBe("");
+				expect(body).toMatchObject({
+					mode: "live",
+					result: {
+						orderId: "ord-live-cancel-id",
+					},
+				});
+				expect(cancelOrder).toHaveBeenCalledTimes(1);
+			});
+		});
+
+		describe("실패 케이스", () => {
+			it("live 모드에서 승인 요약 없이 동작을 중단하고 API 호출을 하지 않는다", async () => {
+				const exitCode = await runCLI(
+					[...cancelOrderArgv, "--live"],
+					{ output, env: createCanonicalTradeSafetyEnv() },
+				);
+
+				expect(exitCode).toBe(2);
+				expect(output.stdout.toString()).toBe("");
+				expect(output.stderr.toString()).toContain(
+					"live_confirmation_required",
+				);
+				expect(cancelOrder).not.toHaveBeenCalled();
+			});
+		});
+	});
+
+	describe("conditional-orders modify", () => {
+		let output: ReturnType<typeof createOutput>;
+		let modifyConditionalOrder: jest.SpiedFunction<
+			typeof SERVICE.tradeCommandService.modifyConditionalOrder
+		>;
+
+		beforeEach(() => {
+			output = createOutput();
+			modifyConditionalOrder = jest.spyOn(
+				SERVICE.tradeCommandService,
+				"modifyConditionalOrder",
+			);
+		});
+
+		describe("성공 케이스", () => {
+			it("기본 dry-run에서 요약만 반환하고 API 호출 없이 종료한다", async () => {
+				const exitCode = await runCLI(modifyConditionalOrderArgv, { output });
+				const body = JSON.parse(output.stdout.toString());
+				const summary = parseConfirmationSummary(body.result.summary);
+
+				expect(exitCode).toBe(0);
+				expect(body).toMatchObject({
+					mode: "dry-run",
+					result: {
+						summary: expect.any(String),
+					},
+				});
+				expect(body).not.toHaveProperty("clientOrderId");
+				expect(body).not.toHaveProperty("summary");
+				expect(summary).toEqual(
+					expect.objectContaining({
+						action: "conditional-orders.modify",
+						account: "42",
+						conditionalOrderId: "coid-live-123",
+						type: "SINGLE",
+						quantity: "1",
+						orderType: "LIMIT",
+						expireDate: "20280101",
+						firstOrderSide: "BUY",
+						firstTriggerPrice: "70000",
+					}),
+				);
+				expect(modifyConditionalOrder).not.toHaveBeenCalled();
+				expect(output.stderr.toString()).toBe("");
+			});
+
+			it("dry-run 요약 재생성으로 승인 시 조건부 주문이 정확히 1회 수정된다", async () => {
+				const dryRunOutput = createOutput();
+				const dryRunExitCode = await runCLI(modifyConditionalOrderArgv, {
+					output: dryRunOutput,
+				});
+				const dryRunBody = JSON.parse(dryRunOutput.stdout.toString());
+
+				expect(dryRunExitCode).toBe(0);
+				expect(dryRunOutput.stderr.toString()).toBe("");
+				expect(dryRunBody).toMatchObject({
+					mode: "dry-run",
+					result: {
+						summary: expect.any(String),
+					},
+				});
+				expect(modifyConditionalOrder).not.toHaveBeenCalled();
+
+				modifyConditionalOrder.mockResolvedValue({
+					result: {
+						conditionalOrderId: "coid-live-order-id",
+					},
+				});
+				const exitCode = await runCLI(
+					[
+						...modifyConditionalOrderArgv,
+						"--live",
+						"--confirm",
+						dryRunBody.result.summary,
+					],
+					{
+						output,
+						env: createCanonicalTradeSafetyEnv(),
+					},
+				);
+				const body = JSON.parse(output.stdout.toString());
+
+				expect(exitCode).toBe(0);
+				expect(output.stderr.toString()).toBe("");
+				expect(body).toMatchObject({
+					mode: "live",
+					result: {
+						conditionalOrderId: "coid-live-order-id",
+					},
+				});
+				expect(modifyConditionalOrder).toHaveBeenCalledTimes(1);
+			});
+		});
+
+		describe("실패 케이스", () => {
+			it("live 모드에서 승인 요약 없이 동작을 중단하고 API 호출을 하지 않는다", async () => {
+				const exitCode = await runCLI(
+					[...modifyConditionalOrderArgv, "--live"],
+					{ output, env: createCanonicalTradeSafetyEnv() },
+				);
+
+				expect(exitCode).toBe(2);
+				expect(output.stdout.toString()).toBe("");
+				expect(output.stderr.toString()).toContain(
+					"live_confirmation_required",
+				);
+				expect(modifyConditionalOrder).not.toHaveBeenCalled();
+			});
+		});
+	});
+
+	describe("conditional-orders cancel", () => {
+		let output: ReturnType<typeof createOutput>;
+		let cancelConditionalOrder: jest.SpiedFunction<
+			typeof SERVICE.tradeCommandService.cancelConditionalOrder
+		>;
+
+		beforeEach(() => {
+			output = createOutput();
+			cancelConditionalOrder = jest.spyOn(
+				SERVICE.tradeCommandService,
+				"cancelConditionalOrder",
+			);
+		});
+
+		describe("성공 케이스", () => {
+			it("기본 dry-run에서 요약만 반환하고 API 호출 없이 종료한다", async () => {
+				const exitCode = await runCLI(cancelConditionalOrderArgv, { output });
+				const body = JSON.parse(output.stdout.toString());
+				const summary = parseConfirmationSummary(body.result.summary);
+
+				expect(exitCode).toBe(0);
+				expect(body).toMatchObject({
+					mode: "dry-run",
+					result: {
+						summary: expect.any(String),
+					},
+				});
+				expect(body).not.toHaveProperty("clientOrderId");
+				expect(body).not.toHaveProperty("summary");
+				expect(summary).toEqual(
+					expect.objectContaining({
+						action: "conditional-orders.cancel",
+						account: "42",
+						conditionalOrderId: "coid-cancel-123",
+					}),
+				);
+				expect(cancelConditionalOrder).not.toHaveBeenCalled();
+				expect(output.stderr.toString()).toBe("");
+			});
+
+			it("dry-run 요약 재생성으로 승인 시 조건부 주문이 정확히 1회 취소된다", async () => {
+				const dryRunOutput = createOutput();
+				const dryRunExitCode = await runCLI(cancelConditionalOrderArgv, {
+					output: dryRunOutput,
+				});
+				const dryRunBody = JSON.parse(dryRunOutput.stdout.toString());
+
+				expect(dryRunExitCode).toBe(0);
+				expect(dryRunOutput.stderr.toString()).toBe("");
+				expect(dryRunBody).toMatchObject({
+					mode: "dry-run",
+					result: {
+						summary: expect.any(String),
+					},
+				});
+				expect(cancelConditionalOrder).not.toHaveBeenCalled();
+
+				cancelConditionalOrder.mockResolvedValue({
+					result: {
+						conditionalOrderId: "coid-live-cancel-id",
+					},
+				});
+				const exitCode = await runCLI(
+					[
+						...cancelConditionalOrderArgv,
+						"--live",
+						"--confirm",
+						dryRunBody.result.summary,
+					],
+					{
+						output,
+						env: createCanonicalTradeSafetyEnv(),
+					},
+				);
+				const body = JSON.parse(output.stdout.toString());
+
+				expect(exitCode).toBe(0);
+				expect(output.stderr.toString()).toBe("");
+				expect(body).toMatchObject({
+					mode: "live",
+					result: {
+						conditionalOrderId: "coid-live-cancel-id",
+					},
+				});
+				expect(cancelConditionalOrder).toHaveBeenCalledTimes(1);
+			});
+		});
+
+		describe("실패 케이스", () => {
+			it("live 모드에서 승인 요약 없이 동작을 중단하고 API 호출을 하지 않는다", async () => {
+				const exitCode = await runCLI(
+					[...cancelConditionalOrderArgv, "--live"],
+					{ output, env: createCanonicalTradeSafetyEnv() },
+				);
+
+				expect(exitCode).toBe(2);
+				expect(output.stdout.toString()).toBe("");
+				expect(output.stderr.toString()).toContain(
+					"live_confirmation_required",
+				);
+				expect(cancelConditionalOrder).not.toHaveBeenCalled();
 			});
 		});
 	});

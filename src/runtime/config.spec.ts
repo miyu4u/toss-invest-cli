@@ -7,6 +7,12 @@ import { CliException } from "../exceptions";
 import { CLI_CONFIG_RUNTIME } from "./config";
 import type { CliConfig } from "../schema/cli/config";
 
+const ACCESS_TOKEN = "TOSS_INVEST_ACCESS_TOKEN";
+const ACCOUNT = "TOSS_INVEST_ACCOUNT";
+const ACCOUNT_ALLOWLIST = "TOSS_INVEST_ACCOUNT_ALLOWLIST";
+const ORDER_KILL_SWITCH = "TOSS_INVEST_ORDER_KILL_SWITCH";
+const ORDER_LIVE_APPROVED = "TOSS_INVEST_ORDER_LIVE_APPROVED";
+
 type SourceAwareCliConfig = CliConfig & {
 	readonly keyringPasswordSource?: {
 		readonly kind: "environment" | "dotenv";
@@ -74,9 +80,8 @@ describe("CLI_CONFIG_RUNTIME", () => {
 		describe("성공 케이스", () => {
 			it("명령행 입력이 환경 값보다 높은 우선순위를 가진다", () => {
 				environment = {
-					TOSS_INVEST_ACCESS_TOKEN: "env-token",
-					TOSSINVEST_ACCOUNT: "env-account",
-					TOSS_INVEST_ACCOUNT: "legacy-account",
+					[ACCESS_TOKEN]: "env-token",
+					[ACCOUNT]: "env-account",
 				};
 				const config = CLI_CONFIG_RUNTIME.load(environment, {
 					accessToken: "explicit-token",
@@ -101,7 +106,7 @@ describe("CLI_CONFIG_RUNTIME", () => {
 
 			it("canonical access token env는 honored된다", () => {
 				const canonical = CLI_CONFIG_RUNTIME.load({
-					TOSS_INVEST_ACCESS_TOKEN: "canonical-token",
+					[ACCESS_TOKEN]: "canonical-token",
 				});
 
 				expect(canonical.environmentAccessToken).toBe("canonical-token");
@@ -111,8 +116,8 @@ describe("CLI_CONFIG_RUNTIME", () => {
 				environment = {
 					HOME: home,
 					TOSS_INVEST_CLI_HOME: ` ${cliHome} `,
-					TOSS_INVEST_ACCESS_TOKEN: "explicit-access-token",
-					TOSSINVEST_ACCOUNT: "explicit-account",
+					[ACCESS_TOKEN]: "explicit-access-token",
+					[ACCOUNT]: "explicit-account",
 					TOSS_INVEST_API_KEY: "explicit-client-id",
 					TOSS_INVEST_SECRET_KEY: "explicit-client-secret",
 					TOSS_INVEST_CLI_KEYRING_PASSWORD: "explicit-keyring-password",
@@ -156,6 +161,46 @@ describe("CLI_CONFIG_RUNTIME", () => {
 				});
 			});
 
+			it("process env의 account/safety 값이 dotenv보다 우선한다", async () => {
+				environment = {
+					HOME: home,
+					TOSS_INVEST_CLI_HOME: cliHome,
+					[ACCOUNT]: "env-account",
+					[ACCOUNT_ALLOWLIST]: "env-42, env-7",
+					[ORDER_KILL_SWITCH]: "env-open",
+					[ORDER_LIVE_APPROVED]: "env-yes",
+				};
+				await writeDotenv(cliHome, [
+					`${ACCOUNT}=config-home-account`,
+					`${ACCOUNT_ALLOWLIST}=cli-42, cli-7`,
+					`${ORDER_KILL_SWITCH}=config-home-close`,
+					`${ORDER_LIVE_APPROVED}=config-home-no`,
+				]);
+				await writeDotenv(workingDirectory, [
+					`${ACCOUNT}=cwd-account`,
+					`${ACCOUNT_ALLOWLIST}=cwd-42, cwd-7`,
+					`${ORDER_KILL_SWITCH}=cwd-open`,
+					`${ORDER_LIVE_APPROVED}=cwd-yes`,
+				]);
+				await writeDotenv(home, [
+					`${ACCOUNT}=home-account`,
+					`${ACCOUNT_ALLOWLIST}=home-42, home-7`,
+					`${ORDER_KILL_SWITCH}=home-close`,
+					`${ORDER_LIVE_APPROVED}=home-no`,
+				]);
+
+				const config = CLI_CONFIG_RUNTIME.load(
+					environment,
+				) as SourceAwareCliConfig;
+
+				expect(config).toMatchObject({
+					defaultAccount: "env-account",
+					accountAllowlist: ["env-42", "env-7"],
+					orderKillSwitch: "env-open",
+					orderLiveApproved: "env-yes",
+				});
+			});
+
 			it("config 홈 > cwd > HOME dotenv 순서로 dotenv source가 적용되고 path가 남는다", async () => {
 				environment = {
 					HOME: home,
@@ -165,14 +210,26 @@ describe("CLI_CONFIG_RUNTIME", () => {
 					"TOSS_INVEST_CLI_KEYRING_PASSWORD=cli-keyring",
 					"TOSS_INVEST_API_KEY=cli-client-id",
 					"TOSS_INVEST_SECRET_KEY=cli-client-secret",
+					`${ACCOUNT}=cli-account`,
+					`${ACCOUNT_ALLOWLIST}=cli-42, cli-7`,
+					`${ORDER_KILL_SWITCH}=cli-open`,
+					`${ORDER_LIVE_APPROVED}=cli-yes`,
 				]);
 				await writeDotenv(workingDirectory, [
 					"TOSS_INVEST_CLI_KEYRING_PASSWORD=cwd-keyring",
 					"TOSS_INVEST_API_KEY=cwd-client-id",
 					"TOSS_INVEST_SECRET_KEY=cwd-client-secret",
+					`${ACCOUNT}=cwd-account`,
+					`${ACCOUNT_ALLOWLIST}=cwd-42, cwd-7`,
+					`${ORDER_KILL_SWITCH}=cwd-open`,
+					`${ORDER_LIVE_APPROVED}=cwd-no`,
 				]);
 				await writeDotenv(home, [
 					"TOSS_INVEST_CLI_KEYRING_PASSWORD=home-keyring",
+					`${ACCOUNT}=home-account`,
+					`${ACCOUNT_ALLOWLIST}=home-42, home-7`,
+					`${ORDER_KILL_SWITCH}=home-close`,
+					`${ORDER_LIVE_APPROVED}=home-yes`,
 				]);
 
 				const config = CLI_CONFIG_RUNTIME.load(
@@ -183,6 +240,10 @@ describe("CLI_CONFIG_RUNTIME", () => {
 					keyringPassword: "cli-keyring",
 					clientId: "cli-client-id",
 					clientSecret: "cli-client-secret",
+					defaultAccount: "cli-account",
+					accountAllowlist: ["cli-42", "cli-7"],
+					orderKillSwitch: "cli-open",
+					orderLiveApproved: "cli-yes",
 				});
 				expectDotenvSource(config.keyringPasswordSource, cliHome);
 				expectDotenvSource(config.clientCredentialsSource, cliHome);
@@ -197,6 +258,16 @@ describe("CLI_CONFIG_RUNTIME", () => {
 					"TOSS_INVEST_CLI_KEYRING_PASSWORD=cwd-keyring",
 					"TOSS_INVEST_API_KEY=cwd-client-id",
 					"TOSS_INVEST_SECRET_KEY=cwd-client-secret",
+					`${ACCOUNT}=cwd-account`,
+					`${ACCOUNT_ALLOWLIST}=cwd-42, cwd-7`,
+					`${ORDER_KILL_SWITCH}=cwd-open`,
+					`${ORDER_LIVE_APPROVED}=cwd-yes`,
+				]);
+				await writeDotenv(home, [
+					`${ACCOUNT}=home-account`,
+					`${ACCOUNT_ALLOWLIST}=home-42, home-7`,
+					`${ORDER_KILL_SWITCH}=home-close`,
+					`${ORDER_LIVE_APPROVED}=home-no`,
 				]);
 
 				const config = CLI_CONFIG_RUNTIME.load(
@@ -206,6 +277,12 @@ describe("CLI_CONFIG_RUNTIME", () => {
 				expect(config.keyringPassword).toBe("cwd-keyring");
 				expectDotenvSource(config.keyringPasswordSource, workingDirectory);
 				expectDotenvSource(config.clientCredentialsSource, workingDirectory);
+				expect(config).toMatchObject({
+					defaultAccount: "cwd-account",
+					accountAllowlist: ["cwd-42", "cwd-7"],
+					orderKillSwitch: "cwd-open",
+					orderLiveApproved: "cwd-yes",
+				});
 			});
 
 			it("레거시 credential 키만 있으면 canonical source 기반 credential이 비활성화된다", async () => {
@@ -231,6 +308,46 @@ describe("CLI_CONFIG_RUNTIME", () => {
 				expect(config.clientId).toBeUndefined();
 				expect(config.clientSecret).toBeUndefined();
 				expect(config.clientCredentialsSource).toBeUndefined();
+			});
+
+			it("레거시 account/safety 키만 있으면 canonical 값은 설정되지 않는다", async () => {
+				const legacyAccount = ["TOSSINVEST", "ACCOUNT"].join("_");
+				const legacyAccountAllowlist = [
+					"TOSSINVEST",
+					"ACCOUNT",
+					"ALLOWLIST",
+				].join("_");
+				const legacyOrderKillSwitch = [
+					"TOSSINVEST",
+					"ORDER",
+					"KILL",
+					"SWITCH",
+				].join("_");
+				const legacyOrderLiveApproved = [
+					"TOSSINVEST",
+					"ORDER",
+					"LIVE",
+					"APPROVED",
+				].join("_");
+				environment = {
+					HOME: home,
+					TOSS_INVEST_CLI_HOME: cliHome,
+				};
+				await writeDotenv(cliHome, [
+					`${legacyAccount}=legacy-account`,
+					`${legacyAccountAllowlist}=legacy-42, legacy-7`,
+					`${legacyOrderKillSwitch}=legacy-open`,
+					`${legacyOrderLiveApproved}=legacy-yes`,
+				]);
+
+				const config = CLI_CONFIG_RUNTIME.load(
+					environment,
+				) as SourceAwareCliConfig;
+
+				expect(config.defaultAccount).toBeUndefined();
+				expect(config.accountAllowlist).toEqual([]);
+				expect(config.orderKillSwitch).toBeUndefined();
+				expect(config.orderLiveApproved).toBeUndefined();
 			});
 
 			it("동일한 source가 아닌 API credential 조합은 clientCredentialsSource 없이 비활성화한다", async () => {
@@ -332,7 +449,7 @@ describe("CLI_CONFIG_RUNTIME", () => {
 
 			it("계정 허용 목록이 있으면 trim된 토큰으로 분리하고 빈 값은 제거한다", () => {
 				environment = {
-					TOSSINVEST_ACCOUNT_ALLOWLIST: " 42 , 7, ,  ,19,,*, wildcard ",
+					[ACCOUNT_ALLOWLIST]: " 42 , 7, ,  ,19,,*, wildcard ",
 				};
 
 				const config = CLI_CONFIG_RUNTIME.load(environment);

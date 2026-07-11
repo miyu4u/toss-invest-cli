@@ -142,9 +142,7 @@ function isMarketRankingsBadRequestResult(result: CliRunResult): boolean {
 }
 
 function resolveLiveAccount(cliHome: string): string | undefined {
-	const explicit =
-		process.env.TOSSINVEST_ACCOUNT?.trim() ??
-		process.env.TOSS_INVEST_ACCOUNT?.trim();
+	const explicit = process.env.TOSS_INVEST_ACCOUNT?.trim();
 	if (explicit) {
 		return explicit;
 	}

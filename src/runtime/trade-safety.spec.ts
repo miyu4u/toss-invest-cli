@@ -200,7 +200,7 @@ describe("TRADE_SAFETY_POLICY", () => {
 					exitCode: 2,
 					details: {
 						missing: expect.arrayContaining([
-							"TOSSINVEST_ORDER_KILL_SWITCH=open",
+							"TOSS_INVEST_ORDER_KILL_SWITCH=open",
 						]),
 					},
 				});
@@ -225,7 +225,7 @@ describe("TRADE_SAFETY_POLICY", () => {
 					exitCode: 2,
 					details: {
 						missing: expect.arrayContaining([
-							"TOSSINVEST_ACCOUNT_ALLOWLIST account match",
+							"TOSS_INVEST_ACCOUNT_ALLOWLIST account match",
 						]),
 					},
 				});

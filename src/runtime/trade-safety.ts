@@ -66,13 +66,13 @@ export class TradeSafetyPolicy {
 		const missing: string[] = [];
 
 		if (input.config.orderLiveApproved !== "yes") {
-			missing.push("TOSSINVEST_ORDER_LIVE_APPROVED=yes");
+			missing.push("TOSS_INVEST_ORDER_LIVE_APPROVED=yes");
 		}
 		if (input.config.orderKillSwitch !== "open") {
-			missing.push("TOSSINVEST_ORDER_KILL_SWITCH=open");
+			missing.push("TOSS_INVEST_ORDER_KILL_SWITCH=open");
 		}
 		if (!this.isAccountAllowed(input.account, input.config.accountAllowlist)) {
-			missing.push("TOSSINVEST_ACCOUNT_ALLOWLIST account match");
+			missing.push("TOSS_INVEST_ACCOUNT_ALLOWLIST account match");
 		}
 
 		if (missing.length > 0) {

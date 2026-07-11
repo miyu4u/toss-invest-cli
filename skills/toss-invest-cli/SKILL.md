@@ -16,7 +16,7 @@ description: "Operate the compiled `toss-invest-cli` command for market, account
 - The runtime reads configuration in this order: explicit `process.env`, `$TOSS_INVEST_CLI_HOME/.env` (default `$HOME/.config/toss-invest-cli/.env`), the current working directory `.env`, then `$HOME/.env`. `TOSS_INVEST_CLI_HOME` must be exported or injected before starting the CLI; it is not discovered from a dotenv file.
 - Credentials may come from root `--access-token <token>`, an encrypted `credentials.enc`, `TOSS_INVEST_ACCESS_TOKEN`, or a complete canonical `TOSS_INVEST_API_KEY`/`TOSS_INVEST_SECRET_KEY` pair from the same source. Never echo, log, or return a token, API key, secret, password, or local credential-cache content.
 - Authentication precedence is: this-call `--access-token`, an unlockable store token or stored API credential, `TOSS_INVEST_ACCESS_TOKEN`, then the same-source API credential pair. A dotenv pair does not need `auth login`; it can issue a token for the request without creating or updating `credentials.enc`.
-- Account-scoped commands accept `--account <accountNo-or-accountSeq>` before the command. The CLI resolves it to the OpenAPI account sequence and refuses ambiguous values. When omitted, it uses `TOSSINVEST_ACCOUNT` or `TOSS_INVEST_ACCOUNT`.
+- Account-scoped commands accept `--account <accountNo-or-accountSeq>` before the command. The CLI resolves it to the OpenAPI account sequence and refuses ambiguous values. When omitted, only canonical `TOSS_INVEST_ACCOUNT` is used; legacy fallbacks are not supported.
 
 # Workflow
 
@@ -79,9 +79,9 @@ Classify the request as a read-only query, local watchlist change, order-informa
 3. **주문 내용 검토**: dry-run의 `summary`가 사용자 요청의 계좌·종목·방향·수량·가격·유효기간 조건과 일치하는지 확인한다. 다르면 새 값으로 dry-run부터 다시 실행한다.
 4. **명시적 live 승인**: 사용자가 그 exact order의 live 실행을 분명히 요청한 경우에만 다음 게이트를 확인한다.
    - 유효한 인증 정보
-   - `TOSSINVEST_ORDER_LIVE_APPROVED=yes`
-   - `TOSSINVEST_ORDER_KILL_SWITCH=open`
-   - 대상 계좌가 `TOSSINVEST_ACCOUNT_ALLOWLIST`에 포함됨
+   - `TOSS_INVEST_ORDER_LIVE_APPROVED=yes`
+   - `TOSS_INVEST_ORDER_KILL_SWITCH=open`
+   - 대상 계좌가 `TOSS_INVEST_ACCOUNT_ALLOWLIST`에 포함됨
 5. **동일 주문 재실행**: 원래 값, `--client-order-id <dry-run-client-order-id>`, `--live`, `--confirm "<dry-run-summary>"`를 함께 사용한다.
 
    ```bash
