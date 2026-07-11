@@ -1,6 +1,6 @@
 {
   "name": "toss-invest-cli",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "module": "src/main.ts",
   "bin": {
     "toss-invest-cli": "src/main.ts"

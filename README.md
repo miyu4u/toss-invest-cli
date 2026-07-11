@@ -6,7 +6,7 @@ Toss Invest OpenAPI를 터미널에서 사용 할 수 있는 CLI입니다.
 
 ### Homebrew 사용
 
-Homebrew와 Bun이 필요합니다.
+Homebrew와 Bun(빌드에 사용됨)이 필요합니다.
 
 custom tap을 등록한 뒤 formula를 설치합니다.
 
@@ -15,13 +15,14 @@ brew tap miyu4u/tap https://github.com/miyu4u/homebrew-tap
 brew install miyu4u/tap/toss-invest-cli
 ```
 
+
 설치가 끝나면 다음 명령으로 CLI를 확인할 수 있습니다.
 
 ```bash
 toss-invest-cli --help
 ```
 
-formula는 설치 과정에서 `bun`으로 소스를 빌드하므로 별도로 바이너리를 내려받지 않습니다.
+> 현재 formula는 설치 과정에서 `bun`으로 소스를 빌드하므로 별도로 바이너리를 내려받지 않습니다.
 
 ### 직접 빌드
 
@@ -43,6 +44,60 @@ bun run build
 
 ## 실행
 
+### QuickStart
+
+환경변수 설정이 필요합니다.
+
+```sh
+touch .env
+vi .env
+```
+
+```dotenv
+# Client Id
+TOSS_INVEST_API_KEY= 
+
+# Client Secret
+TOSS_INVEST_SECRET_KEY=
+
+# 암호화에 사용할 키는 openssl로 생성할 수 있습니다.
+# 예시 (32바이트 랜덤 키, base64로 저장):
+# openssl rand -base64 32
+# openssl rand -base64 32 | pbcopy
+
+# 예시 실행:
+# $ openssl rand -base64 32
+# oJw3b3hC1y9mHKw8eoQWtA5nZq6YzG1bLqwNnVHbDaY=
+
+# 생성된 값을 .env의 TOSS_INVEST_CLI_KEYRING_PASSWORD에 복사해서 사용하세요.
+# 암복호화를 위한 키 페어링
+TOSS_INVEST_CLI_KEYRING_PASSWORD=
+```
+
+`auth login`을 사용하여 CLI 인증 보관소에 키를 등록합니다.
+
+```sh
+toss-invest-cli auth login
+toss-invest-cli auth token
+toss-invest-cli account list
+```
+
+다음 값이 뜨면 성공입니다.
+
+```json
+{
+  "result": [
+    {
+      "accountNo": "<number>",
+      "accountSeq": 0,
+      "accountType": "<string>"
+    }
+  ]
+}
+```
+
+---
+
 로컬 기본 흐름은 `auth login`으로 API credential을 password-encrypted store에 저장하는 것입니다.
 
 CI·비대화식 실행에서는 환경 변수 credential 또는 access token fallback을 사용할 수 있습니다.
@@ -54,7 +109,7 @@ CI·비대화식 실행에서는 환경 변수 credential 또는 access token fa
 3. 현재 작업 디렉터리 `.env`
 4. `$HOME/.env`
 
-`TOSS_INVEST_CLI_HOME`은 `.env` 파일에서 정의되지 않으며, CLI 실행 전에 환경에서 export/inject되어 있어야 합니다.
+> `TOSS_INVEST_CLI_HOME`은 변경이 가능합니다. 다만 `TOSS_INVEST_CLI_HOME`은 `.env` 파일에서 정의되지 않으며, CLI 실행 전에 환경에서 export/inject되어 있어야 합니다.
 
 
 값이 설정되면 `$TOSS_INVEST_CLI_HOME/.env`로 탐색할 config-home 경로가 결정됩니다.
@@ -68,18 +123,6 @@ toss-invest-cli --help
 
 ```bash
 TOSS_INVEST_CLI_HOME="$HOME/.config/my-custom-toss-invest-cli" toss-invest-cli --help
-```
-
-```bash
-cp .env.example .env
-```
-
-```dotenv
-# CI 또는 비대화식 실행에서만 환경 변수를 사용합니다.
-# process.env가 같은 키를 .env 파일보다 항상 우선합니다.
-# TOSS_INVEST_API_KEY=<api-key>
-# TOSS_INVEST_SECRET_KEY=<secret-key>
-# TOSS_INVEST_ACCESS_TOKEN=<access-token>
 ```
 
 대화형 터미널에서 다음 명령으로 API credential(`TOSS_INVEST_API_KEY`/`TOSS_INVEST_SECRET_KEY`)과 store password를 숨김 입력으로 저장합니다. `credentials.enc`는 기본 config home(`~/.config/toss-invest-cli`)에 owner-only 권한으로 생성되며, password나 credential은 출력하지 않습니다.
@@ -120,7 +163,6 @@ toss-invest-cli --json market prices --symbols 005930
 ```
 
 
-
 ## 빌드
 
 다음 명령으로 컴파일합니다. 빌드된 바이너리도 동일한 scoped dotenv 규칙을 사용하며, 기본 `.env` 자동 로드는 없습니다.
@@ -141,7 +183,7 @@ toss-invest-cli [--access-token <token>] [--account <accountNo-or-accountSeq>] [
 ```
 
 - `--access-token <token>`: 이번 호출에만 사용할 OAuth access token입니다. `TOSS_INVEST_ACCESS_TOKEN` 환경 변수도 사용할 수 있습니다.
-- `--account <accountNo-or-accountSeq>`: `account list`가 반환한 `accountNo` 또는 `accountSeq`를 지정합니다. CLI는 둘 중 어느 값을 받아도 OpenAPI header에 필요한 `accountSeq`로 변환합니다. 하나의 입력이 서로 다른 계좌와 충돌하면 `ACCOUNT_AMBIGUOUS`로 중단하므로 임의의 계좌를 선택하지 않습니다. 생략하면 `TOSSINVEST_ACCOUNT` 또는 `TOSS_INVEST_ACCOUNT`를 사용합니다.
+- `--account <accountNo-or-accountSeq>`: `account list`가 반환한 `accountNo` 또는 `accountSeq`를 지정합니다. CLI는 둘 중 어느 값을 받아도 OpenAPI header에 필요한 `accountSeq`로 변환합니다. 하나의 입력이 서로 다른 계좌와 충돌하면 `ACCOUNT_AMBIGUOUS`로 중단하므로 임의의 계좌를 선택하지 않습니다. `TOSS_INVEST_ACCOUNT`를 사용합니다.
 - `--json`: 결과 데이터만 parse-clean JSON으로 stdout에 출력합니다. 오류와 진단 메시지는 stderr로 분리됩니다.
 - `--help`: 루트 또는 하위 명령의 도움말을 표시합니다. 예: `toss-invest orders --help`
 
@@ -206,9 +248,9 @@ toss-invest-cli orders create \
 1. **실주문 환경 게이트를 설정합니다.** 유효한 인증 정보와 함께 대상 계좌를 allowlist에 등록하고, 다음 환경 값을 설정해야 합니다.
 
 ```dotenv
-TOSSINVEST_ORDER_LIVE_APPROVED=yes
-TOSSINVEST_ORDER_KILL_SWITCH=open
-TOSSINVEST_ACCOUNT_ALLOWLIST=<accountSeq>
+TOSS_INVEST_ORDER_LIVE_APPROVED=yes
+TOSS_INVEST_ORDER_KILL_SWITCH=open
+TOSS_INVEST_ACCOUNT_ALLOWLIST=<accountSeq>
 ```
 
 1. **주문 조건과** `summary`**를 검토한 뒤, 동일한 주문 값으로 다시 실행합니다.**
@@ -260,7 +302,7 @@ dry-run과 live 모두 primary data는 `result` 아래에 있습니다.
 
 ## HTTP 422 주문 거부 가이드
 
-OpenAPI가 2xx가 아닌 응답을 반환하면 CLI는 `HttpException`으로 전파하고 비정상 종료합니다. HTTP `422`는 요청 형식 자체보다 현재 주문 조건이 거래소 또는 API의 실행 조건을 충족하지 않아 거부되었음을 뜻합니다. 자동으로 재시도하지 마세요.
+OpenAPI가 2xx가 아닌 응답을 반환하면 CLI는 `HttpException`으로 전파하고 비정상 종료합니다. HTTP `422`는 요청 형식 자체보다 현재 주문 조건이 거래소 또는 API의 실행 조건을 충족하지 않아 거부되었음을 뜻합니다. **자동으로 재시도하지 마세요.**
 
 확인된 사례는 **미국 주식의 시장가(**`MARKET`**) 주문을 정규장 시작 전에 제출하는 경우**입니다. 이 조합은 `422`로 거부될 수 있으므로, 정규장에 다시 실행하거나 해당 시점에 허용되는 주문 유형과 가격 조건으로 바꿔야 합니다.
 
@@ -280,15 +322,17 @@ error_kind=HttpException {"error":{"code":"HttpException","details":{"name":"Htt
 
 ## 고액 주문의 경우
 
-TODO: 작성 예정
+고액 주문은 고액 주문 사항에 대한 명시적 동의를 파라미터로 전달해야하는 의무가 있습니다. 이는 토스 증권쪽에서 서술하는 의무사항이며, 기준 가격은 공개되어 있지 않습니다.
+
+해당 조건에 해당되는 경우, 고액 주문 사항에 대한 동의 플래그가 없다면 토스 증권쪽에서 해당 주문 요청을 거부합니다. API내에 기능은 구현되어있으나, 현재 주문 안전 게이트에서 이를 지원하지 않고 있습니다. (구현 예정)
 
 
 ## 기능
 
 - **인증과 실행 환경**
-  - `auth login`은 `TOSS_INVEST_API_KEY`/`TOSS_INVEST_SECRET_KEY`가 **동일한 source에서 완전한 canonical pair**로 존재할 때만 prompt를 건너뜁니다. `process.env` 우선순위가 dotenv보다 높고, dotenv source는 `$TOSS_INVEST_CLI_HOME/.env` → `./.env` → `$HOME/.env` 순입니다. 다른 source 섞임이나 불완전한 쌍이면 prompt fallback가 실행됩니다.
+  - `auth login`은 `TOSS_INVEST_API_KEY`/`TOSS_INVEST_SECRET_KEY`및 암호화 정보를 KEYRING pair 를 사용하여 암호화 상태로 보관합니다. login 이후에는 .env 없이 CLI 사용이 가능합니다.
   - `auth login` JSON 응답의 `credentialSource`는 민감한 값 없이 출처 메타데이터만 반환합니다 (`environment`, `dotenv + path`, `prompt`).
-  - `auth logout`은 encrypted store와 기존 plaintext `auth-cache.json`을 제거합니다. 새 실행 경로는 plaintext cache를 읽거나 쓰지 않습니다.
+  - `auth logout`은 encrypted store를 제거합니다.
   - 401 응답 시 자격 증명이 있으면 token을 한 번 재발급하고 재시도합니다.
   - `--json` 모드에서 stdout을 자동화 가능한 JSON 데이터로 유지하고, 오류·진단은 stderr로 분리하며 민감정보를 마스킹합니다.
 - **시장과 종목 조회**
@@ -306,10 +350,11 @@ TODO: 작성 예정
 ## 한계
 
 - 이 CLI는 구현된 Toss Invest OpenAPI endpoint와 권한 범위만 다룹니다. API의 모든 기능이나 향후 변경 사항을 포괄하지 않습니다.
+- Toss Invest OpenAPI는 현재 HTTPS 를 사용한 거래만 지원합니다. (WS 미지원). 실시간 거래가 필요한 경우 다른 HTS API를 권장합니다.
 - 네트워크 상태, OpenAPI 접근 권한, rate limit, 응답 데이터의 정확성 및 가용성은 외부 서비스에 좌우됩니다.
 - 계좌·주문 관련 명령은 유효한 자격 증명과 계좌 정보가 필요합니다. 로컬 관심 종목과 encrypted credential store는 기본적으로 `~/.config/toss-invest-cli` 아래에 저장됩니다.
-- 주문 명령의 dry-run과 live 안전 게이트는 오주문 위험을 줄이기 위한 장치일 뿐, 투자 판단·체결·손실을 보장하지 않습니다. 실제 주문 전에는 출력된 조건과 주문 내용을 독립적으로 확인해야 합니다.
-- 사고 및 여러가지의 문제를 막기 위한 번잡한 과정 및 조치, 보호 수단들이 적용 되어 있지만 AI와 같이 사용하는 경우, `사용자의 관심어린 관리 감독`과 **실 제 주 문 작 동 여 부**, SECRET 관리**(아주 매우 중요)**가 필요합니다. 대표적인 실수 사례는 *TSLL을 5$를 살 계획만 수립*하라고 했더니, *5$를 이미 사버렸거나*, 이미 TSLL을 5$를 샀는데, *TSLL 5$를 또 사는 등*의 케이스가 있습니다.
+- 주문 명령의 dry-run과 live 안전 게이트는 오주문 위험을 줄이기 위한 장치일 뿐, 투자 판단·체결·손실을 보장하지 않습니다. 실제 주문 전에는 출력된 조건과 주문 내용을 토스 증권 앱에서 독립적으로 확인해야 합니다.
+- 사고 및 여러가지의 문제를 막기 위한 번잡한 과정 및 조치, 보호 수단들이 적용 되어 있지만 AI와 같이 사용하는 경우, `사용자의 관심어린 관리 감독`과 **실 제 주 문 작 동 여 부**, SECRET 관리(아주 매우 중요)가 필요합니다. 대표적인 실수 사례는 TSLL을 5$를 살 계획만 수립하라고 했더니, 5$를 이미 사버렸거나, 이미 TSLL을 5$를 샀는데, TSLL 5$를 또 사는 등의 케이스가 있습니다.
 
 
 
