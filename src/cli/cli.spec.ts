@@ -336,11 +336,27 @@ describe("CLI bootstrap", () => {
 			let apiPrices: jest.SpiedFunction<
 				typeof SERVICE.tossInvestAPIService.getPrices
 			>;
-			let response: { result: Array<{ symbol: string; price: string }> };
+			let response: {
+				result: Array<{
+					symbol: string;
+					lastPrice: string;
+					currency: "KRW" | "USD";
+					timestamp?: string;
+				}>;
+			};
 
 			beforeEach(() => {
 				output = createOutput();
-				response = { result: [{ symbol: "AAPL", price: "100" }] };
+				response = {
+					result: [
+						{
+							symbol: "AAPL",
+							lastPrice: "100",
+							currency: "USD",
+							timestamp: "2026-06-25T09:30:00.123+09:00",
+						},
+					],
+				};
 				apiPrices = jest
 					.spyOn(SERVICE.tossInvestAPIService, "getPrices")
 					.mockResolvedValue(response);
@@ -374,7 +390,15 @@ describe("CLI bootstrap", () => {
 				output = createOutput();
 				apiPrices = jest
 					.spyOn(SERVICE.tossInvestAPIService, "getPrices")
-					.mockResolvedValue({ result: [] });
+					.mockResolvedValue({
+						result: [
+							{
+								symbol: "AAPL",
+								lastPrice: "100",
+								currency: "USD",
+							},
+						],
+					});
 				prices = jest.spyOn(SERVICE.queryCommandService, "prices");
 			});
 

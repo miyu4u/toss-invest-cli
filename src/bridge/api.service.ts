@@ -9,6 +9,25 @@ import type {
 	ConditionalOrderResponse,
 	ConditionalOrderCreateResponse,
 	SellableQuantityResponse,
+	CandlePageResponse,
+	ConditionalOrderDetailResponse,
+	ExchangeRateResponse,
+	HoldingsOverview,
+	InvestorTradingResponse,
+	KrMarketCalendarResponse,
+	MarketIndicatorCandlePageResponse,
+	MarketIndicatorPriceResponse,
+	Order,
+	OrderbookResponse,
+	PaginatedConditionalOrderResponse,
+	PaginatedOrderResponse,
+	PriceLimitResponse,
+	PriceResponse,
+	RankingResponse,
+	StockInfo,
+	StockWarning,
+	Trade,
+	UsMarketCalendarResponse,
 } from "../schema/api/responses";
 import type {
 	CancelOrderRequest,
@@ -112,84 +131,84 @@ export class TossInvestAPIService {
         );
     }
 
-    getOrderbook<TResult = unknown>(
+    getOrderbook(
         params: GetOrderbookParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<OrderbookResponse>> {
         return this.get("/api/v1/orderbook", params);
     }
 
-    getPrices<TResult = unknown>(
+    getPrices(
         params: GetPricesParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<PriceResponse[]>> {
         return this.get("/api/v1/prices", params);
     }
 
-    getTrades<TResult = unknown>(
+    getTrades(
         params: GetTradesParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<Trade[]>> {
         return this.get("/api/v1/trades", params);
     }
 
-    getPriceLimit<TResult = unknown>(
+    getPriceLimit(
         params: GetPriceLimitParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<PriceLimitResponse>> {
         return this.get("/api/v1/price-limits", params);
     }
 
-    getCandles<TResult = unknown>(
+    getCandles(
         params: GetCandlesParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<CandlePageResponse>> {
         return this.get("/api/v1/candles", params);
     }
 
-    getStocks<TResult = unknown>(
+    getStocks(
         params: GetStocksParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<StockInfo[]>> {
         return this.get("/api/v1/stocks", params);
     }
 
-    getStockWarnings<TResult = unknown>(
+    getStockWarnings(
         params: GetStockWarningsParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<StockWarning[]>> {
         return this.get(
             `/api/v1/stocks/${this.pathSegment(params.symbol, "symbol")}/warnings`,
             undefined,
         );
     }
 
-    getExchangeRate<TResult = unknown>(
+    getExchangeRate(
         params: GetExchangeRateParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<ExchangeRateResponse>> {
         return this.get("/api/v1/exchange-rate", params);
     }
 
-    getKrMarketCalendar<TResult = unknown>(
+    getKrMarketCalendar(
         params: GetMarketCalendarParams = {},
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<KrMarketCalendarResponse>> {
         return this.get("/api/v1/market-calendar/KR", params);
     }
 
-    getUsMarketCalendar<TResult = unknown>(
+    getUsMarketCalendar(
         params: GetMarketCalendarParams = {},
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<UsMarketCalendarResponse>> {
         return this.get("/api/v1/market-calendar/US", params);
     }
 
-    getRankings<TResult = unknown>(
+    getRankings(
         params: GetRankingsParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<RankingResponse>> {
         return this.get("/api/v1/rankings", params);
     }
 
-    getMarketIndicatorPrices<TResult = unknown>(
+    getMarketIndicatorPrices(
         params: GetMarketIndicatorPricesParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<MarketIndicatorPriceResponse[]>> {
         return this.get("/api/v1/market-indicators/prices", params);
     }
 
-    getMarketIndicatorCandles<TResult = unknown>(
+    getMarketIndicatorCandles(
         params: GetMarketIndicatorCandlesParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<MarketIndicatorCandlePageResponse>> {
         const { symbol, ...query } = params;
         return this.get(
             `/api/v1/market-indicators/${this.pathSegment(symbol, "symbol")}/candles`,
@@ -197,9 +216,9 @@ export class TossInvestAPIService {
         );
     }
 
-    getMarketIndicatorInvestorTrading<TResult = unknown>(
+    getMarketIndicatorInvestorTrading(
         params: GetMarketIndicatorInvestorTradingParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<InvestorTradingResponse>> {
         const { symbol, ...query } = params;
         return this.get(
             `/api/v1/market-indicators/${this.pathSegment(symbol, "symbol")}/investor-trading`,
@@ -211,16 +230,16 @@ export class TossInvestAPIService {
         return this.get("/api/v1/accounts", undefined);
     }
 
-    getHoldings<TResult = unknown>(
+    getHoldings(
         params: GetHoldingsParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<HoldingsOverview>> {
         const { account, ...query } = params;
         return this.get("/api/v1/holdings", query, account);
     }
 
-    getOrders<TResult = unknown>(
+    getOrders(
         params: GetOrdersParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<PaginatedOrderResponse>> {
         const { account, ...query } = params;
         return this.get("/api/v1/orders", query, account);
     }
@@ -232,9 +251,9 @@ export class TossInvestAPIService {
         return this.post("/api/v1/orders", request, params.account);
     }
 
-    getOrder<TResult = unknown>(
+    getOrder(
         params: OrderIdentityParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<Order>> {
         return this.get(
             `/api/v1/orders/${this.pathSegment(params.orderId, "orderId")}`,
             undefined,
@@ -271,16 +290,16 @@ export class TossInvestAPIService {
         return this.post("/api/v1/conditional-orders", request, params.account);
     }
 
-    getConditionalOrders<TResult = unknown>(
+    getConditionalOrders(
         params: GetConditionalOrdersParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<PaginatedConditionalOrderResponse>> {
         const { account, ...query } = params;
         return this.get("/api/v1/conditional-orders", query, account);
     }
 
-    getConditionalOrder<TResult = unknown>(
+    getConditionalOrder(
         params: ConditionalOrderIdentityParams,
-    ): Promise<TossInvestApiResponse<TResult>> {
+    ): Promise<TossInvestApiResponse<ConditionalOrderDetailResponse>> {
         return this.get(
             `/api/v1/conditional-orders/${this.pathSegment(
                 params.conditionalOrderId,

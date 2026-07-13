@@ -126,7 +126,15 @@ describe("WatchlistCommandService", () => {
 			it("정규화된 저장 상태를 symbols 쿼리로 API에 위임한다", async () => {
 				const getPrices = jest
 					.spyOn(SERVICE.tossInvestAPIService, "getPrices")
-					.mockResolvedValue({ result: true });
+					.mockResolvedValue({
+						result: [
+							{
+								symbol: "AAPL",
+								lastPrice: "100",
+								currency: "USD",
+							},
+						],
+					});
 
 				await writeFile(
 					stateFile(config),
@@ -139,7 +147,15 @@ describe("WatchlistCommandService", () => {
 
 				const prices = await service.prices(config);
 
-				expect(prices).toEqual({ result: true });
+				expect(prices).toEqual({
+					result: [
+						{
+							symbol: "AAPL",
+							lastPrice: "100",
+							currency: "USD",
+						},
+					],
+				});
 				expect(getPrices).toHaveBeenCalledTimes(1);
 				expect(getPrices).toHaveBeenCalledWith({ symbols: "005930,AAPL,MSFT" });
 			});
