@@ -74,6 +74,18 @@ const createConditionalOrderArgv = [
 	"70000",
 ];
 
+const createConditionalOrderWithSecondConditionArgv = [
+	...createConditionalOrderArgv,
+	"--first-order-price",
+	"70100",
+	"--second-order-side",
+	"SELL",
+	"--second-trigger-price",
+	"71000",
+	"--second-order-price",
+	"70900",
+];
+
 function parseConfirmationSummary(summary: unknown): Record<string, string> {
 	return Object.fromEntries(
 		String(summary)
@@ -219,6 +231,18 @@ const modifyConditionalOrderArgv = [
 	"BUY",
 	"--first-trigger-price",
 	"70000",
+];
+
+const modifyConditionalOrderWithSecondConditionArgv = [
+	...modifyConditionalOrderArgv,
+	"--first-order-price",
+	"70100",
+	"--second-order-side",
+	"SELL",
+	"--second-trigger-price",
+	"71000",
+	"--second-order-price",
+	"70900",
 ];
 
 const cancelConditionalOrderArgv = [
@@ -710,6 +734,142 @@ describe("거래 명령", () => {
 				expect(summary).not.toHaveProperty("confirmHighValueOrder");
 				expect(createConditionalOrder).not.toHaveBeenCalled();
 				expect(output.stderr.toString()).toBe("");
+			});
+
+			it("선택 가격/두 번째 조건을 포함한 dry-run 요약으로 동일 요청이 live에서 실행되어야 한다", async () => {
+				const clientOrderId = "cid-conditional-live-with-second";
+				const dryRunOutput = createOutput();
+
+				createConditionalOrder.mockResolvedValue({
+					result: { conditionalOrderId: "dry-run-order-id" },
+				});
+
+				const dryRunExitCode = await runCLI(
+					[
+						...createConditionalOrderWithSecondConditionArgv,
+						"--client-order-id",
+						clientOrderId,
+						"--confirm-high-value-order",
+					],
+					{ output: dryRunOutput },
+				);
+				const dryRunBody = JSON.parse(dryRunOutput.stdout.toString());
+				const dryRunSummary = parseConfirmationSummary(dryRunBody.result.summary);
+
+				expect(dryRunExitCode).toBe(0);
+				expect(dryRunOutput.stderr.toString()).toBe("");
+				expect(dryRunBody).toMatchObject({
+					mode: "dry-run",
+					result: {
+						clientOrderId,
+						summary: expect.any(String),
+					},
+				});
+				expect(dryRunSummary.firstOrderPrice).toBe("70100");
+				expect(dryRunSummary.secondOrderSide).toBe("SELL");
+				expect(dryRunSummary.secondTriggerPrice).toBe("71000");
+				expect(dryRunSummary.secondOrderPrice).toBe("70900");
+				expect(createConditionalOrder).not.toHaveBeenCalled();
+
+				createConditionalOrder.mockResolvedValue({
+					result: { conditionalOrderId: "conditional-live-order-id" },
+				});
+				const exitCode = await runCLI(
+					[
+						...createConditionalOrderWithSecondConditionArgv,
+						"--client-order-id",
+						clientOrderId,
+						"--confirm-high-value-order",
+						"--live",
+						"--confirm",
+						dryRunBody.result.summary,
+					],
+					{
+						output,
+						env: {
+							...createCanonicalTradeSafetyEnv(),
+						},
+					},
+				);
+				const body = JSON.parse(output.stdout.toString());
+
+				expect(exitCode).toBe(0);
+				expect(output.stderr.toString()).toBe("");
+				expect(body).toMatchObject({
+					mode: "live",
+					result: {
+						conditionalOrderId: "conditional-live-order-id",
+					},
+				});
+				expect(createConditionalOrder).toHaveBeenCalledTimes(1);
+				const createConditionalOrderCall = createConditionalOrder.mock.calls[0];
+				if (!createConditionalOrderCall) {
+					throw new Error("Expected createConditionalOrder to be called");
+				}
+				const [, createConditionalOrderRequest] = createConditionalOrderCall;
+				expect(createConditionalOrderRequest).toMatchObject({
+					clientOrderId,
+					confirmHighValueOrder: true,
+					expireDate: "20280101",
+					orderType: "LIMIT",
+					quantity: "1",
+					symbol: "005930",
+					type: "SINGLE",
+					first: {
+						orderPrice: "70100",
+						orderSide: "BUY",
+						triggerPrice: "70000",
+					},
+					second: {
+						orderPrice: "70900",
+						orderSide: "SELL",
+						triggerPrice: "71000",
+					},
+				});
+			});
+
+			it("요약을 하나 변경해 live로 재실행하면 조건부 주문이 거부된다", async () => {
+				const clientOrderId = "cid-conditional-live-with-second-mismatch";
+				const dryRunOutput = createOutput();
+
+				const dryRunExitCode = await runCLI(
+					[
+						...createConditionalOrderWithSecondConditionArgv,
+						"--client-order-id",
+						clientOrderId,
+					],
+					{ output: dryRunOutput },
+				);
+
+				expect(dryRunExitCode).toBe(0);
+				const dryRunBody = JSON.parse(dryRunOutput.stdout.toString());
+
+				const staleSummary = dryRunBody.result.summary.replace(
+					"firstOrderPrice=70100",
+					"firstOrderPrice=99999",
+				);
+
+				const exitCode = await runCLI(
+					[
+						...createConditionalOrderWithSecondConditionArgv,
+						"--client-order-id",
+						clientOrderId,
+						"--live",
+						"--confirm",
+						staleSummary,
+					],
+					{
+						output,
+						env: createCanonicalTradeSafetyEnv(),
+					},
+				);
+
+				expect(exitCode).toBe(2);
+				expect(output.stdout.toString()).toBe("");
+				expect(output.stderr.toString()).toContain(
+					"live_confirmation_required",
+				);
+				expect(createConditionalOrder).not.toHaveBeenCalled();
 			});
 
 			it("client-order-id 생략 시 dry-run 결과/요약에 UUID가 노출되고 호출마다 달라진다", async () => {
@@ -1240,6 +1400,127 @@ describe("거래 명령", () => {
 				expect(modifyConditionalOrderRequest).toMatchObject({
 					confirmHighValueOrder: true,
 				});
+			});
+
+			it("선택 가격/두 번째 조건을 포함한 dry-run 요약으로 동일 요청이 live에서 실행되어야 한다", async () => {
+				const dryRunOutput = createOutput();
+
+				modifyConditionalOrder.mockResolvedValue({
+					result: { conditionalOrderId: "dry-run-order-id" },
+				});
+				const dryRunExitCode = await runCLI(
+					[...modifyConditionalOrderWithSecondConditionArgv, "--confirm-high-value-order"],
+					{
+						output: dryRunOutput,
+					},
+				);
+				const dryRunBody = JSON.parse(dryRunOutput.stdout.toString());
+				const dryRunSummary = parseConfirmationSummary(dryRunBody.result.summary);
+
+				expect(dryRunExitCode).toBe(0);
+				expect(dryRunOutput.stderr.toString()).toBe("");
+				expect(dryRunBody).toMatchObject({
+					mode: "dry-run",
+					result: {
+						summary: expect.any(String),
+					},
+				});
+				expect(dryRunSummary.firstOrderPrice).toBe("70100");
+				expect(dryRunSummary.secondOrderSide).toBe("SELL");
+				expect(dryRunSummary.secondTriggerPrice).toBe("71000");
+				expect(dryRunSummary.secondOrderPrice).toBe("70900");
+				expect(modifyConditionalOrder).not.toHaveBeenCalled();
+
+				modifyConditionalOrder.mockResolvedValue({
+					result: {
+						conditionalOrderId: "coid-live-order-id",
+					},
+				});
+				const exitCode = await runCLI(
+					[
+						...modifyConditionalOrderWithSecondConditionArgv,
+						"--confirm-high-value-order",
+						"--live",
+						"--confirm",
+						dryRunBody.result.summary,
+					],
+					{
+						output,
+						env: createCanonicalTradeSafetyEnv(),
+					},
+				);
+				const body = JSON.parse(output.stdout.toString());
+
+				expect(exitCode).toBe(0);
+				expect(output.stderr.toString()).toBe("");
+				expect(body).toMatchObject({
+					mode: "live",
+					result: {
+						conditionalOrderId: "coid-live-order-id",
+					},
+				});
+				expect(modifyConditionalOrder).toHaveBeenCalledTimes(1);
+				const modifyConditionalOrderCall = modifyConditionalOrder.mock.calls[0];
+				if (!modifyConditionalOrderCall) {
+					throw new Error("Expected modifyConditionalOrder to be called");
+				}
+				const [modifyConditionalOrderParams, modifyConditionalOrderRequest] =
+					modifyConditionalOrderCall;
+				expect(modifyConditionalOrderParams).toMatchObject({
+					account: Number(CANONICAL_ACCOUNT_SEQ),
+					conditionalOrderId: "coid-live-123",
+				});
+				expect(modifyConditionalOrderRequest).toMatchObject({
+					confirmHighValueOrder: true,
+					expireDate: "20280101",
+					orderType: "LIMIT",
+					quantity: "1",
+					type: "SINGLE",
+					first: {
+						orderPrice: "70100",
+						orderSide: "BUY",
+						triggerPrice: "70000",
+					},
+					second: {
+						orderPrice: "70900",
+						orderSide: "SELL",
+						triggerPrice: "71000",
+					},
+				});
+			});
+
+			it("요약을 하나 변경해 live로 재실행하면 조건부 주문 수정이 거부된다", async () => {
+				const dryRunOutput = createOutput();
+				const dryRunExitCode = await runCLI(
+					modifyConditionalOrderWithSecondConditionArgv,
+					{ output: dryRunOutput },
+				);
+				expect(dryRunExitCode).toBe(0);
+				const dryRunBody = JSON.parse(dryRunOutput.stdout.toString());
+
+				const staleSummary = dryRunBody.result.summary.replace(
+					"secondOrderPrice=70900",
+					"secondOrderPrice=99999",
+				);
+				const exitCode = await runCLI(
+					[
+						...modifyConditionalOrderWithSecondConditionArgv,
+						"--live",
+						"--confirm",
+						staleSummary,
+					],
+					{
+						output,
+						env: createCanonicalTradeSafetyEnv(),
+					},
+				);
+
+				expect(exitCode).toBe(2);
+				expect(output.stdout.toString()).toBe("");
+				expect(output.stderr.toString()).toContain(
+					"live_confirmation_required",
+				);
+				expect(modifyConditionalOrder).not.toHaveBeenCalled();
 			});
 		});
 
