@@ -333,16 +333,18 @@ error_kind=HttpException {"error":{"code":"HttpException","details":{"name":"Htt
 
 고액 주문 여부와 기준 금액은 서버가 주문 조건과 계좌·시장 상황을 기준으로 판정합니다. 해당 조건에 해당되는 경우, 고액 주문 사항에 대한 동의 플래그가 없다면 토스 증권쪽에서 해당 주문 요청을 거부합니다.
 
-이 기준과 기본값은 클라이언트에 공개되지 않으므로 CLI가 통화별 threshold를 설정하거나 `quantity × price`, `orderAmount`, 조건부 주문의 가격으로 고액 여부를 미리 산정하지 않습니다.
+이 기준과 기본값은 클라이언트에 공개되지 않으므로 CLI가 고액인지에 대한 여부를 미리 산정하지 않습니다.그래서 dry-run만으로는 고액 주문 여부를 확정할 수 없습니다.
 
-따라서 dry-run만으로는 고액 주문 여부를 확정할 수 없습니다. dry-run에서는 실제 주문을 발행하지 않고 다음 항목만 확인합니다.
+dry-run에서는 실제 주문을 발행하지 않고 다음 항목만 확인합니다.
 
 - symbol, side, order type, quantity 또는 order amount, price 등 주문 조건
 - live 승인에 사용할 `result.clientOrderId`
 - 변경하지 않고 다시 전달할 `result.summary`
 - `--confirm-high-value-order`를 지정했는지 여부
 
-실주문을 진행할 때에는 일반적인 `--live`, 환경 안전 변수, 계좌 allowlist, dry-run summary 확인 절차를 지키고, 고액 주문 동의가 필요한 경우 `--confirm-high-value-order`를 명시합니다. 이 flag는 클라이언트가 고액 여부를 판정하는 기능이 아니라 서버 요청에 명시적 동의를 전달하는 기능입니다.
+실주문을 진행할 때에는 일반적인 `--live`, 환경 안전 변수, 계좌 allowlist, dry-run summary 확인 절차를 지키고, 고액 주문 동의가 필요한 경우 `--confirm-high-value-order`를 명시합니다.
+
+이 flag는 클라이언트가 고액 여부를 판정하는 기능이 아니라 서버 요청에 명시적 동의를 전달하는 기능입니다.
 
 서버가 해당 주문을 고액 주문 동의 부족 또는 주문 조건 문제로 거부하면 CLI는 성공으로 처리하지 않고 exception을 stderr로 전달합니다. 오류가 발생한 뒤에는 자동으로 재시도하지 말고 다음 순서로 다시 확인해야합니다.
 
